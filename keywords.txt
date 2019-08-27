@@ -1,0 +1,39 @@
+#######################################
+# Syntax Coloring Map 
+#######################################
+
+#######################################
+# Datatypes (KEYWORD1)
+#######################################
+
+ATECCX08A							KEYWORD1
+
+#######################################
+# Methods and Functions (KEYWORD2)
+#######################################
+
+begin								KEYWORD2
+
+getInfo						KEYWORD2
+updateRandom32Bytes						KEYWORD2
+getRandomByte						KEYWORD2
+getRandomInt						KEYWORD2
+getRandomLong						KEYWORD2
+atca_calculate_crc						KEYWORD2
+idleMode						KEYWORD2
+
+
+#######################################
+# Constants (LITERAL1)
+#######################################
+
+ATECC508A_ADDRESS_DEFAULT		 			LITERAL1
+
+WORD_ADDRESS_VALUE_COMMAND		 			LITERAL1
+WORD_ADDRESS_VALUE_IDLE		 			LITERAL1
+
+COMMAND_OPCODE_INFO		 			LITERAL1
+COMMAND_OPCODE_RANDOM		 			LITERAL1
+COMMAND_OPCODE_READ		 			LITERAL1
+COMMAND_OPCODE_SHA		 			LITERAL1
+
