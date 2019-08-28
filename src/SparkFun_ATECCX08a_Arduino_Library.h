@@ -53,10 +53,14 @@
 
 // COMMANDS (aka "opcodes" in the datasheet)
 #define COMMAND_OPCODE_INFO 	0x30 // Return device state information.
+#define COMMAND_OPCODE_LOCK 	0x17 // Lock configuration and/or Data and OTP zones
 #define COMMAND_OPCODE_RANDOM 	0x1B // Create and return a random number (32 bytes of data)
 #define COMMAND_OPCODE_READ 	0x02 // Return device state information.
 #define COMMAND_OPCODE_SHA 	0x47 // Computes a SHA-256 or HMAC/SHA digest for general purpose use by the system.
 
+// Lock command PARAM1 zone options (aka Mode). more info at table on datasheet page 75
+#define LOCK_ZONE_CONFIG 			0b10000000
+#define LOCK_ZONE_DATA_AND_OTP 		0b10000001
 
 class ATECCX08A {
   public:
@@ -78,6 +82,9 @@ class ATECCX08A {
 	boolean wakeUp();
 	void idleMode();
 	boolean getInfo();
+	boolean lockConfig(); // note, this prevents changing I2C address!
+	boolean lockDataAndOTP();
+	boolean lock(byte zone);
 	
 	// Random array and fuctions
 	byte random32Bytes[32]; // used to store the complete data return (32 bytes) when we ask for a random number from chip.

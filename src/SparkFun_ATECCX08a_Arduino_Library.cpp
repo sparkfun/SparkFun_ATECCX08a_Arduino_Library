@@ -151,6 +151,79 @@ boolean ATECCX08A::getInfo()
   else return false;
 }
 
+/** \brief
+
+	lockConfig()
+	
+	This function sends the LOCK Command with the configuration zone parameter, 
+	and listens for success response (0x00).
+*/
+
+boolean ATECCX08A::lockConfig()
+{
+  return lock(LOCK_ZONE_CONFIG);
+}
+
+/** \brief
+
+	lockDataAndOTP()
+	
+	This function sends the LOCK Command with the Data and OTP (one-time-programming) zone parameter, 
+	and listens for success response (0x00).
+*/
+
+boolean ATECCX08A::lockDataAndOTP()
+{
+  return lock(LOCK_ZONE_DATA_AND_OTP);
+}
+
+/** \brief
+
+	lock(byte zone)
+	
+	This function sends the LOCK Command using hte argument zone as parameter 1, 
+	and listens for success response (0x00).
+*/
+
+boolean ATECCX08A::lock(byte zone)
+{
+  // build packet array to complete a communication to IC
+  // It expects to see word address, count, command, param1, param2a, param2b, CRC[0], CRC[1].
+  uint8_t count = 0x07;
+  uint8_t command = COMMAND_OPCODE_LOCK;
+  uint8_t param1 = zone;
+  uint8_t param2a = 0x00;
+  uint8_t param2b = 0x00;
+
+  // update CRCs
+  uint8_t packet_to_CRC[] = {count, command, param1, param2a, param2b};
+  atca_calculate_crc((count - 2), packet_to_CRC); // count includes crc[0] and crc[1], so we must subtract 2 before creating crc
+  //Serial.println(crc[0], HEX);
+  //Serial.println(crc[1], HEX);
+
+  // create complete message using newly created/updated crc values
+  byte complete_message[9] = {WORD_ADDRESS_VALUE_COMMAND, count, command, param1, param2a, param2b, crc[0], crc[1]};
+
+  wakeUp();
+ 
+  _i2cPort->beginTransmission(_i2caddr);
+  _i2cPort->write(complete_message, 8);
+  _i2cPort->endTransmission();
+
+  delay(32); // time for IC to process command and exectute
+  
+  // Now let's read back from the IC and see if it reports back good things.
+  countGlobal = 0; 
+  if(receiveResponseData(1, true) == false) return false;
+  idleMode();
+  if(checkCount() == false) return false;
+  if(checkCrc() == false) return false;
+  if(inputBuffer[0] == 0x00) return true;   // If we hear a "0x00", that means it had a successful lock
+  else return false;
+}
+
+
+
 
 /** \brief
 

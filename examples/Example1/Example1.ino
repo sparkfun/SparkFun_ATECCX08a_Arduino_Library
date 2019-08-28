@@ -18,7 +18,8 @@ void setup() {
     while (1); // stall out forever 
   }
   atecc.getInfo();
-  Serial.println(atecc.getRandomLong(true));
+  atecc.lockConfig();
+  Serial.println(atecc.getRandomByte(true),HEX);
   
 }
 

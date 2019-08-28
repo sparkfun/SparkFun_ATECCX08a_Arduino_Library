@@ -21,6 +21,8 @@ getRandomInt						KEYWORD2
 getRandomLong						KEYWORD2
 atca_calculate_crc						KEYWORD2
 idleMode						KEYWORD2
+lockConfig						KEYWORD2
+lockDataAndOTP						KEYWORD2
 
 
 #######################################
