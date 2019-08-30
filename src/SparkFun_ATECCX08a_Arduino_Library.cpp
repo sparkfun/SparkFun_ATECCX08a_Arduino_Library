@@ -515,3 +515,119 @@ void ATECCX08A::cleanInputBuffer()
     inputBuffer[i] = 0;
   }
 }
+
+boolean ATECCX08A::generatePublicKey(byte slot)
+{
+  // build packet array to complete a communication to IC
+  // It expects to see word address, count, command, param1, param2, CRC1, CRC2
+  uint8_t count = 0x07;
+  uint8_t command = COMMAND_OPCODE_GENKEY;
+  uint8_t param1 = GENKEY_MODE_PUBLIC;
+  uint8_t param2a = 0x00;
+  uint8_t param2b = slot; // defult is 0
+
+  // update CRCs
+  uint8_t packet_to_CRC[] = {count, command, param1, param2a, param2b};
+  atca_calculate_crc((count - 2), packet_to_CRC); // count includes crc[0] and crc[1], so we must subtract 2 before creating crc
+  //Serial.println(crc[0], HEX);
+  //Serial.println(crc[1], HEX);
+
+  // create complete message using newly created/updated crc values
+  byte complete_message[9] = {WORD_ADDRESS_VALUE_COMMAND, count, command, param1, param2a, param2b, crc[0], crc[1]};
+
+  wakeUp();
+  
+  _i2cPort->beginTransmission(_i2caddr);
+  _i2cPort->write(complete_message, 8);
+  _i2cPort->endTransmission();
+
+  delay(115); // time for IC to process command and exectute
+
+  // Now let's read back from the IC. This will be 35 bytes of data (count + 32_data_bytes + crc[0] + crc[1])
+
+  if(receiveResponseData(64, true) == true) return false;
+  idleMode();
+  if(checkCount(true) == false) return false;
+  if(checkCrc(true) == false) return false;
+  
+  return true;
+}
+
+boolean ATECCX08A::readKeySlot(byte slot)
+{
+
+}
+
+boolean ATECCX08A::storeKeyInSlot(byte slot)
+{
+
+}
+
+boolean ATECCX08A::createMAC(uint8_t *message, uint8_t *generatedMAC)
+{
+
+}
+
+boolean ATECCX08A::verifyMAC(uint8_t *message, uint8_t *receivedMAC)
+{
+
+}
+
+boolean ATECCX08A::read(byte zone, byte address, byte length)
+{
+  // build packet array to complete a communication to IC
+  // It expects to see word address, count, command, param1, param2, CRC1, CRC2
+  uint8_t count = 0x07;
+  uint8_t command = COMMAND_OPCODE_READ;
+  uint8_t param1 = zone;
+  uint8_t param2a = 0x00;
+  uint8_t param2b = address;
+  
+  // adjust param1 as needed for whether it's 4 or 32 bytes length read
+  // bit 7 of param1 needs to be set correctly 
+  // (0 = 4 Bytes are read) 
+  // (1 = 32 Bytes are read)
+  if(length == 32) 
+  {
+	param1 |= 0b10000000; // set bit 7
+  }
+  else if(length == 4)
+  {
+	param1 &= ~0b10000000; // clear bit 7
+  }
+  else
+  {
+	return 0; // invalid length, abort.
+  }
+
+  // update CRCs
+  uint8_t packet_to_CRC[] = {count, command, param1, param2a, param2b};
+  atca_calculate_crc((count - 2), packet_to_CRC); // count includes crc[0] and crc[1], so we must subtract 2 before creating crc
+  //Serial.println(crc[0], HEX);
+  //Serial.println(crc[1], HEX);
+
+  // create complete message using newly created/updated crc values
+  byte complete_message[9] = {WORD_ADDRESS_VALUE_COMMAND, count, command, param1, param2a, param2b, crc[0], crc[1]};
+
+  wakeUp();
+  
+  _i2cPort->beginTransmission(_i2caddr);
+  _i2cPort->write(complete_message, 8);
+  _i2cPort->endTransmission();
+
+  delay(5); // time for IC to process command and exectute
+
+  // Now let's read back from the IC. 
+  
+  if(receiveResponseData(length + 3, true) == true) return false;
+  idleMode();
+  if(checkCount(true) == false) return false;
+  if(checkCrc(true) == false) return false;
+  
+  return true;
+}
+
+boolean ATECCX08A::write(byte zone, byte address, byte length)
+{
+
+}

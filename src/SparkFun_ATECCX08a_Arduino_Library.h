@@ -55,12 +55,17 @@
 #define COMMAND_OPCODE_INFO 	0x30 // Return device state information.
 #define COMMAND_OPCODE_LOCK 	0x17 // Lock configuration and/or Data and OTP zones
 #define COMMAND_OPCODE_RANDOM 	0x1B // Create and return a random number (32 bytes of data)
-#define COMMAND_OPCODE_READ 	0x02 // Return device state information.
-#define COMMAND_OPCODE_SHA 	0x47 // Computes a SHA-256 or HMAC/SHA digest for general purpose use by the system.
+#define COMMAND_OPCODE_READ 	0x02 // Return data at a specific zone and address.
+#define COMMAND_OPCODE_SHA 		0x47 // Computes a SHA-256 or HMAC/SHA digest for general purpose use by the system.
+#define COMMAND_OPCODE_GENKEY 	0x40 // Creates a key (public and/or private) and stores it in a memory key slot
 
 // Lock command PARAM1 zone options (aka Mode). more info at table on datasheet page 75
 #define LOCK_ZONE_CONFIG 			0b10000000
 #define LOCK_ZONE_DATA_AND_OTP 		0b10000001
+
+// GenKey command PARAM1 zone options (aka Mode). more info at table on datasheet page 71
+#define GENKEY_MODE_PUBLIC 			0b00000000
+#define GENKEY_MODE_PRIVATE 		0b00001000
 
 class ATECCX08A {
   public:
@@ -95,6 +100,17 @@ class ATECCX08A {
 	
 	uint8_t crc[2] = {0, 0};
 	void atca_calculate_crc(uint8_t length, uint8_t *data);	
+	
+	// Key functions
+	boolean generatePublicKey(byte slot = 0);
+	boolean readKeySlot(byte slot = 0);
+	boolean storeKeyInSlot(byte slot = 0);
+	boolean createMAC(uint8_t *message, uint8_t *generatedMAC);
+	boolean verifyMAC(uint8_t *message, uint8_t *receivedMAC);
+
+	boolean read(byte zone, byte address, byte length = 4);
+	boolean write(byte zone, byte address, byte length);
+
 	
   private:
 
