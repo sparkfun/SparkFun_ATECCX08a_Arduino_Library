@@ -56,8 +56,10 @@
 #define COMMAND_OPCODE_LOCK 	0x17 // Lock configuration and/or Data and OTP zones
 #define COMMAND_OPCODE_RANDOM 	0x1B // Create and return a random number (32 bytes of data)
 #define COMMAND_OPCODE_READ 	0x02 // Return data at a specific zone and address.
+#define COMMAND_OPCODE_WRITE 	0x12 // Return data at a specific zone and address.
 #define COMMAND_OPCODE_SHA 		0x47 // Computes a SHA-256 or HMAC/SHA digest for general purpose use by the system.
 #define COMMAND_OPCODE_GENKEY 	0x40 // Creates a key (public and/or private) and stores it in a memory key slot
+#define COMMAND_OPCODE_NONCE 	0x16 // 
 
 // Lock command PARAM1 zone options (aka Mode). more info at table on datasheet page 75
 #define LOCK_ZONE_CONFIG 			0b10000000
@@ -66,6 +68,15 @@
 // GenKey command PARAM1 zone options (aka Mode). more info at table on datasheet page 71
 #define GENKEY_MODE_PUBLIC 			0b00000000
 #define GENKEY_MODE_PRIVATE 		0b00001000
+
+#define ZONE_CONFIG 0x00
+#define ZONE_OTP 0x01
+#define ZONE_DATA 0x02
+
+#define ADDRESS_CONFIG_BLOCK_0 0b00000000 // param2 (byte 0), address block bits: _ _ _ 0  0 _ _ _ 
+#define ADDRESS_CONFIG_BLOCK_1 0b00001000 // param2 (byte 0), address block bits: _ _ _ 0  1 _ _ _ 
+#define ADDRESS_CONFIG_BLOCK_2 0b00010000 // param2 (byte 0), address block bits: _ _ _ 1  0 _ _ _ 
+#define ADDRESS_CONFIG_BLOCK_3 0b00011000 // param2 (byte 0), address block bits: _ _ _ 1  1 _ _ _ 
 
 class ATECCX08A {
   public:
@@ -78,6 +89,7 @@ class ATECCX08A {
 	#endif
 	
 	byte inputBuffer[128]; // used to store messages received from the IC as they come in
+	byte configZone[128]; // used to store configuration zone bytes read from device EEPROM
 	boolean receiveResponseData(uint8_t length = 0, boolean debug = false);
 	boolean checkCount(boolean debug = false);
 	boolean checkCrc(boolean debug = false);
@@ -87,7 +99,7 @@ class ATECCX08A {
 	boolean wakeUp();
 	void idleMode();
 	boolean getInfo();
-	boolean lockConfig(); // note, this prevents changing I2C address!
+	boolean lockConfig(); // note, this PERMINANTLY disables changes to config zone - including changing the I2C address!
 	boolean lockDataAndOTP();
 	boolean lock(byte zone);
 	
@@ -108,9 +120,11 @@ class ATECCX08A {
 	boolean createMAC(uint8_t *message, uint8_t *generatedMAC);
 	boolean verifyMAC(uint8_t *message, uint8_t *receivedMAC);
 
-	boolean read(byte zone, byte address, byte length = 4);
-	boolean write(byte zone, byte address, byte length);
+	boolean read(byte zone, byte address, byte length = 4, boolean debug = false);
+	boolean write(byte zone, byte address, byte length, const byte data[]);
 
+	boolean readConfigZone(boolean debug = false);
+	boolean nOnce(boolean debug = false);
 	
   private:
 

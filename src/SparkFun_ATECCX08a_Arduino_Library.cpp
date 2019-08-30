@@ -166,6 +166,46 @@ boolean ATECCX08A::lockConfig()
 
 /** \brief
 
+	readConfigZone()
+	
+	This function reads the entire configuration zone EEPROM memory on the device.
+	It stores them for vewieing in a large array called configZone[128].
+*/
+
+boolean ATECCX08A::readConfigZone(boolean debug)
+{
+  // read block 0, the first 32 bytes of config zone into inputBuffer
+  read(ZONE_CONFIG, ADDRESS_CONFIG_BLOCK_0, 32); 
+  
+  // copy current contents of inputBuffer into configZone[] (for later viewing/comparing)
+  memcpy(&configZone[0], &inputBuffer[1], 32);
+  
+  read(ZONE_CONFIG, ADDRESS_CONFIG_BLOCK_1, 32); 	// read block 1
+  memcpy(&configZone[32], &inputBuffer[1], 32); 	// copy block 1
+  
+  read(ZONE_CONFIG, ADDRESS_CONFIG_BLOCK_2, 32); 	// read block 2
+  memcpy(&configZone[64], &inputBuffer[1], 32); 	// copy block 2
+  
+  read(ZONE_CONFIG, ADDRESS_CONFIG_BLOCK_3, 32); 	// read block 3
+  memcpy(&configZone[96], &inputBuffer[1], 32); 	// copy block 3  
+  
+  if(debug)
+  {
+    Serial.println("configZone: ");
+    for (int i = 0; i < sizeof(configZone) ; i++)
+    {
+      Serial.print(i);
+	  Serial.print(": ");
+	  Serial.println(configZone[i], HEX);
+    }
+    Serial.println();
+  }
+  
+  return true;
+}
+
+/** \brief
+
 	lockDataAndOTP()
 	
 	This function sends the LOCK Command with the Data and OTP (one-time-programming) zone parameter, 
@@ -545,7 +585,44 @@ boolean ATECCX08A::generatePublicKey(byte slot)
 
   // Now let's read back from the IC. This will be 35 bytes of data (count + 32_data_bytes + crc[0] + crc[1])
 
-  if(receiveResponseData(64, true) == true) return false;
+  if(receiveResponseData(64, true) == false) return false;
+  idleMode();
+  if(checkCount(true) == false) return false;
+  if(checkCrc(true) == false) return false;
+  
+  return true;
+}
+
+boolean ATECCX08A::nOnce(boolean debug)
+{
+  // build packet array to complete a communication to IC
+  // It expects to see word address, count, command, param1, param2, CRC1, CRC2
+  uint8_t count = 0x07;
+  uint8_t command = COMMAND_OPCODE_NONCE;
+  uint8_t param1 = 0x00;
+  uint8_t param2a = 0x00;
+  uint8_t param2b = 0x00;
+
+  // update CRCs
+  uint8_t packet_to_CRC[] = {count, command, param1, param2a, param2b};
+  atca_calculate_crc((count - 2), packet_to_CRC); // count includes crc[0] and crc[1], so we must subtract 2 before creating crc
+  //Serial.println(crc[0], HEX);
+  //Serial.println(crc[1], HEX);
+
+  // create complete message using newly created/updated crc values
+  byte complete_message[9] = {WORD_ADDRESS_VALUE_COMMAND, count, command, param1, param2a, param2b, crc[0], crc[1]};
+
+  wakeUp();
+  
+  _i2cPort->beginTransmission(_i2caddr);
+  _i2cPort->write(complete_message, 8);
+  _i2cPort->endTransmission();
+
+  delay(115); // time for IC to process command and exectute
+
+  // Now let's read back from the IC. This will be 35 bytes of data (count + 32_data_bytes + crc[0] + crc[1])
+
+  if(receiveResponseData(32, true) == false) return false;
   idleMode();
   if(checkCount(true) == false) return false;
   if(checkCrc(true) == false) return false;
@@ -573,15 +650,15 @@ boolean ATECCX08A::verifyMAC(uint8_t *message, uint8_t *receivedMAC)
 
 }
 
-boolean ATECCX08A::read(byte zone, byte address, byte length)
+boolean ATECCX08A::read(byte zone, byte address, byte length, boolean debug)
 {
   // build packet array to complete a communication to IC
   // It expects to see word address, count, command, param1, param2, CRC1, CRC2
   uint8_t count = 0x07;
   uint8_t command = COMMAND_OPCODE_READ;
   uint8_t param1 = zone;
-  uint8_t param2a = 0x00;
-  uint8_t param2b = address;
+  uint8_t param2a = address;
+  uint8_t param2b = 0x00;
   
   // adjust param1 as needed for whether it's 4 or 32 bytes length read
   // bit 7 of param1 needs to be set correctly 
@@ -619,15 +696,79 @@ boolean ATECCX08A::read(byte zone, byte address, byte length)
 
   // Now let's read back from the IC. 
   
-  if(receiveResponseData(length + 3, true) == true) return false;
+  if(receiveResponseData(length + 3, debug) == false) return false;
   idleMode();
-  if(checkCount(true) == false) return false;
-  if(checkCrc(true) == false) return false;
+  if(checkCount(debug) == false) return false;
+  if(checkCrc(debug) == false) return false;
   
   return true;
 }
 
-boolean ATECCX08A::write(byte zone, byte address, byte length)
+boolean ATECCX08A::write(byte zone, byte address, byte length, const byte data[])
 {
 
+  // adjust zone as needed for whether it's 4 or 32 bytes length read
+  // bit 7 of param1 needs to be set correctly 
+  // (0 = 4 Bytes are read) 
+  // (1 = 32 Bytes are read)
+  if(length == 32) 
+  {
+	zone |= 0b10000000; // set bit 7
+  }
+  else if(length == 4)
+  {
+	zone &= ~0b10000000; // clear bit 7
+  }
+  else
+  {
+	return 0; // invalid length, abort.
+  }
+  
+  uint8_t complete_message_length = (8 + length);
+  uint8_t complete_message[complete_message_length];
+  complete_message[0] = WORD_ADDRESS_VALUE_COMMAND; // word address value (type command)
+  complete_message[1] = complete_message_length-1; 						// count
+  complete_message[2] = COMMAND_OPCODE_WRITE; 		// command
+  complete_message[3] = zone;						// param1
+  complete_message[4] = address;					// param2a
+  complete_message[5] = 0x00;						// param2b
+  memcpy(&complete_message[6], &data[0], length);	// data
+  
+  
+  // update CRCs
+  uint8_t packet_to_CRC[5+length];
+  // append data
+  memcpy(&packet_to_CRC[0], &complete_message[1], (5+length));
+  
+      Serial.println("packet_to_CRC: ");
+    for (int i = 0; i < sizeof(packet_to_CRC) ; i++)
+    {
+	  Serial.print(packet_to_CRC[i], HEX);
+	  Serial.print(",");
+    }
+    Serial.println();
+  
+  atca_calculate_crc((5+length), packet_to_CRC); // count includes crc[0] and crc[1], so we must subtract 2 before creating crc
+  Serial.println(crc[0], HEX);
+  Serial.println(crc[1], HEX);
+
+  // append crcs
+  memcpy(&complete_message[6+length], &crc[0], 2);  
+
+  wakeUp();
+ 
+  _i2cPort->beginTransmission(_i2caddr);
+  _i2cPort->write(complete_message, complete_message_length);
+  _i2cPort->endTransmission();
+
+  delay(26); // time for IC to process command and exectute
+  
+  // Now let's read back from the IC and see if it reports back good things.
+  countGlobal = 0; 
+  if(receiveResponseData(1, true) == false) return false;
+  idleMode();
+  if(checkCount() == false) return false;
+  if(checkCrc() == false) return false;
+  if(inputBuffer[0] == 0x00) return true;   // If we hear a "0x00", that means it had a successful lock
+  else return false;
 }
