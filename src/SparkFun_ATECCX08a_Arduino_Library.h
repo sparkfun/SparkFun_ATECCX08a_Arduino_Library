@@ -60,6 +60,8 @@
 #define COMMAND_OPCODE_SHA 		0x47 // Computes a SHA-256 or HMAC/SHA digest for general purpose use by the system.
 #define COMMAND_OPCODE_GENKEY 	0x40 // Creates a key (public and/or private) and stores it in a memory key slot
 #define COMMAND_OPCODE_NONCE 	0x16 // 
+#define COMMAND_OPCODE_SIGN 	0x41 // Create an ECC signature with contents of TempKey and designated key slot
+#define COMMAND_OPCODE_VERIFY 	0x45 // takes an ECDSA <R,S> signature and verifies that it is correctly generated from a given message and public key
 
 // Lock command PARAM1 zone options (aka Mode). more info at table on datasheet page 75
 #define LOCK_ZONE_CONFIG 			0b10000000
@@ -67,7 +69,14 @@
 
 // GenKey command PARAM1 zone options (aka Mode). more info at table on datasheet page 71
 #define GENKEY_MODE_PUBLIC 			0b00000000
-#define GENKEY_MODE_PRIVATE 		0b00001000
+#define GENKEY_MODE_NEW_PRIVATE 		0b00000100
+
+#define NONCE_MODE_PASSTHROUGH		0b00000011 // Operate in pass-through mode and Write TempKey with NumIn. datasheet pg 79
+#define SIGN_MODE_TEMPKEY			0b10000000 // The message to be signed is in TempKey. datasheet pg 85
+#define VERIFY_MODE_EXTERNAL		0b00000010 // Use an external public key for verification, pass to command as data post param2, ds pg 89
+#define VERIFY_MODE_STORED			0b00000000 // Use an internally stored public key for verification, param2 = keyID, ds pg 89
+#define VERIFY_PARAM2_KEYTYPE_ECC 	0b00000100 // When verify mode external, param2 should be KeyType, ds pg 89
+#define VERIFY_PARAM2_KEYTYPE_NONECC 	0b00000111 // When verify mode external, param2 should be KeyType, ds pg 89
 
 #define ZONE_CONFIG 0x00
 #define ZONE_OTP 0x01
@@ -77,6 +86,8 @@
 #define ADDRESS_CONFIG_BLOCK_1 0b00001000 // param2 (byte 0), address block bits: _ _ _ 0  1 _ _ _ 
 #define ADDRESS_CONFIG_BLOCK_2 0b00010000 // param2 (byte 0), address block bits: _ _ _ 1  0 _ _ _ 
 #define ADDRESS_CONFIG_BLOCK_3 0b00011000 // param2 (byte 0), address block bits: _ _ _ 1  1 _ _ _ 
+
+#define ADDRESS_DATA_SLOT1 0b0000 0000 // 
 
 class ATECCX08A {
   public:
@@ -90,6 +101,9 @@ class ATECCX08A {
 	
 	byte inputBuffer[128]; // used to store messages received from the IC as they come in
 	byte configZone[128]; // used to store configuration zone bytes read from device EEPROM
+	byte publicKey64Bytes[64]; // used to store the public key returned when you (1) create a keypair, or (2) read a public key
+	uint8_t signature[64];
+	
 	boolean receiveResponseData(uint8_t length = 0, boolean debug = false);
 	boolean checkCount(boolean debug = false);
 	boolean checkCrc(boolean debug = false);
@@ -114,17 +128,20 @@ class ATECCX08A {
 	void atca_calculate_crc(uint8_t length, uint8_t *data);	
 	
 	// Key functions
-	boolean generatePublicKey(byte slot = 0);
 	boolean readKeySlot(byte slot = 0);
 	boolean storeKeyInSlot(byte slot = 0);
-	boolean createMAC(uint8_t *message, uint8_t *generatedMAC);
-	boolean verifyMAC(uint8_t *message, uint8_t *receivedMAC);
+	
+	boolean createNewKeyPair(uint8_t slot = 0);
+	boolean loadTempKey(uint8_t *message);
+	boolean createSignature(uint8_t slot = 0); // create signature using contents of TempKey and PRIVATE KEY in slot
+	boolean verifySignature(uint8_t *message, uint8_t *signature, uint8_t slot = 0, uint8_t type = VERIFY_PARAM2_KEYTYPE_ECC);  // stored key (accepts slot argument)
+    boolean verifySignatureExternal(uint8_t *message, uint8_t *signature, uint8_t *publicKey, uint8_t type = VERIFY_PARAM2_KEYTYPE_ECC); // external publicKey
+	boolean verify(uint8_t *message, uint8_t *signature, uint8_t *publicKey, uint8_t slot = 0, uint8_t type = VERIFY_PARAM2_KEYTYPE_ECC);
 
 	boolean read(byte zone, byte address, byte length = 4, boolean debug = false);
 	boolean write(byte zone, byte address, byte length, const byte data[]);
 
 	boolean readConfigZone(boolean debug = false);
-	boolean nOnce(boolean debug = false);
 	
   private:
 
