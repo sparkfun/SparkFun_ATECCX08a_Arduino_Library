@@ -127,8 +127,8 @@ boolean ATECCX08A::getInfo()
   // update CRCs
   uint8_t packet_to_CRC[] = {count, command, param1, param2a, param2b};
   atca_calculate_crc((count - 2), packet_to_CRC); // count includes crc[0] and crc[1], so we must subtract 2 before creating crc
-  //SerialUSB.println(crc[0], HEX);
-  //SerialUSB.println(crc[1], HEX);
+  //Serial.println(crc[0], HEX);
+  //Serial.println(crc[1], HEX);
 
   // create complete message using newly created/updated crc values
   byte complete_message[9] = {WORD_ADDRESS_VALUE_COMMAND, count, command, param1, param2a, param2b, crc[0], crc[1]};
@@ -191,18 +191,18 @@ boolean ATECCX08A::readConfigZone(boolean debug)
   
   if(debug)
   {
-    SerialUSB.println("configZone: ");
+    Serial.println("configZone: ");
     for (int i = 0; i < sizeof(configZone) ; i++)
     {
-      SerialUSB.print(i);
-	  SerialUSB.print(": 0x");
-	  if((configZone[i] >> 4) == 0) SerialUSB.print("0"); // print preceeding high byte if it's zero
-	  SerialUSB.print(configZone[i], HEX); 
-	  SerialUSB.print(" \t0b");
-	  for(int bit = 7; bit >= 0; bit--) SerialUSB.print(bitRead(configZone[i],bit)); // print binary WITH preceding '0' bits
-	  SerialUSB.println();
+      Serial.print(i);
+	  Serial.print(": 0x");
+	  if((configZone[i] >> 4) == 0) Serial.print("0"); // print preceeding high byte if it's zero
+	  Serial.print(configZone[i], HEX); 
+	  Serial.print(" \t0b");
+	  for(int bit = 7; bit >= 0; bit--) Serial.print(bitRead(configZone[i],bit)); // print binary WITH preceding '0' bits
+	  Serial.println();
     }
-    SerialUSB.println();
+    Serial.println();
   }
   
   return true;
@@ -242,8 +242,8 @@ boolean ATECCX08A::lock(byte zone)
   // update CRCs
   uint8_t packet_to_CRC[] = {count, command, param1, param2a, param2b};
   atca_calculate_crc((count - 2), packet_to_CRC); // count includes crc[0] and crc[1], so we must subtract 2 before creating crc
-  //SerialUSB.println(crc[0], HEX);
-  //SerialUSB.println(crc[1], HEX);
+  //Serial.println(crc[0], HEX);
+  //Serial.println(crc[1], HEX);
 
   // create complete message using newly created/updated crc values
   byte complete_message[9] = {WORD_ADDRESS_VALUE_COMMAND, count, command, param1, param2a, param2b, crc[0], crc[1]};
@@ -295,8 +295,8 @@ boolean ATECCX08A::updateRandom32Bytes(boolean debug)
   // update CRCs
   uint8_t packet_to_CRC[] = {count, command, param1, param2a, param2b};
   atca_calculate_crc((count - 2), packet_to_CRC); // count includes crc[0] and crc[1], so we must subtract 2 before creating crc
-  //SerialUSB.println(crc[0], HEX);
-  //SerialUSB.println(crc[1], HEX);
+  //Serial.println(crc[0], HEX);
+  //Serial.println(crc[1], HEX);
 
   // create complete message using newly created/updated crc values
   byte complete_message[9] = {WORD_ADDRESS_VALUE_COMMAND, count, command, param1, param2a, param2b, crc[0], crc[1]};
@@ -326,13 +326,13 @@ boolean ATECCX08A::updateRandom32Bytes(boolean debug)
 
   if(debug)
   {
-    SerialUSB.print("random32Bytes: ");
+    Serial.print("random32Bytes: ");
     for (int i = 0; i < sizeof(random32Bytes) ; i++)
     {
-      SerialUSB.print(random32Bytes[i], HEX);
-      SerialUSB.print(",");
+      Serial.print(random32Bytes[i], HEX);
+      Serial.print(",");
     }
-    SerialUSB.println();
+    Serial.println();
   }
   
   return true;
@@ -422,6 +422,7 @@ boolean ATECCX08A::receiveResponseData(uint8_t length, boolean debug)
   
   countGlobal = 0; // reset for each new message (most important, like wensleydale at a cheese party)
   cleanInputBuffer();
+  byte requestAttempts = 0; // keep track of how many times we've attempted to request, to break out if necessary
   
   while(length)
   {
@@ -429,6 +430,7 @@ boolean ATECCX08A::receiveResponseData(uint8_t length, boolean debug)
 	if(length > 32) requestAmount = 32; // as we have more than 32 to pull in, keep pulling in 32 byte chunks
 	else requestAmount = length; // now we're ready to pull in the last chunk.
 	_i2cPort->requestFrom(_i2caddr, requestAmount);    // request bytes from slave
+	requestAttempts++;
 
 	while (_i2cPort->available())   // slave may send less than requested
 	{
@@ -436,17 +438,18 @@ boolean ATECCX08A::receiveResponseData(uint8_t length, boolean debug)
 	  length--; // keep this while loop active until we've pulled in everything
 	  countGlobal++; // keep track of the count of the entire message.
 	}  
+	if(requestAttempts == 256) break; // this probably means that the device is not responding.
   }
 
   if(debug)
   {
-    SerialUSB.print("inputBuffer: ");
+    Serial.print("inputBuffer: ");
 	for (int i = 0; i < countGlobal ; i++)
 	{
-	  SerialUSB.print(inputBuffer[i], HEX);
-	  SerialUSB.print(",");
+	  Serial.print(inputBuffer[i], HEX);
+	  Serial.print(",");
 	}
-	SerialUSB.println();	  
+	Serial.println();	  
   }
   return true;
 }
@@ -464,15 +467,15 @@ boolean ATECCX08A::checkCount(boolean debug)
 {
   if(debug)
   {
-    SerialUSB.print("countGlobal: 0x");
-	SerialUSB.println(countGlobal, HEX);
-	SerialUSB.print("count heard from IC (inpuBuffer[0]): 0x");
-    SerialUSB.println(inputBuffer[0], HEX);
+    Serial.print("countGlobal: 0x");
+	Serial.println(countGlobal, HEX);
+	Serial.print("count heard from IC (inpuBuffer[0]): 0x");
+    Serial.println(inputBuffer[0], HEX);
   }
   // Check count; the first byte sent from IC is count, and it should be equal to the actual message count
   if(inputBuffer[0] != countGlobal) 
   {
-	SerialUSB.println("Message Count Error");
+	Serial.println("Message Count Error");
 	return false;
   }  
   return true;
@@ -495,15 +498,15 @@ boolean ATECCX08A::checkCrc(boolean debug)
   
   if(debug)
   {
-    SerialUSB.print("CRC[0] Calc: 0x");
-	SerialUSB.println(crc[0], HEX);
-	SerialUSB.print("CRC[1] Calc: 0x");
-    SerialUSB.println(crc[1], HEX);
+    Serial.print("CRC[0] Calc: 0x");
+	Serial.println(crc[0], HEX);
+	Serial.print("CRC[1] Calc: 0x");
+    Serial.println(crc[1], HEX);
   }
   
   if( (inputBuffer[countGlobal-1] != crc[1]) || (inputBuffer[countGlobal-2] != crc[0]) )   // then check the CRCs.
   {
-	SerialUSB.println("Message CRC Error");
+	Serial.println("Message CRC Error");
 	return false;
   }
   
@@ -573,8 +576,8 @@ boolean ATECCX08A::createNewKeyPair(byte slot)
   // update CRCs
   uint8_t packet_to_CRC[] = {count, command, param1, param2a, param2b};
   atca_calculate_crc((count - 2), packet_to_CRC); // count includes crc[0] and crc[1], so we must subtract 2 before creating crc
-  //SerialUSB.println(crc[0], HEX);
-  //SerialUSB.println(crc[1], HEX);
+  //Serial.println(crc[0], HEX);
+  //Serial.println(crc[1], HEX);
 
   // create complete message using newly created/updated crc values
   byte complete_message[9] = {WORD_ADDRESS_VALUE_COMMAND, count, command, param1, param2a, param2b, crc[0], crc[1]};
@@ -601,13 +604,13 @@ boolean ATECCX08A::createNewKeyPair(byte slot)
     publicKey64Bytes[i] = inputBuffer[i + 1];
   }
   
-  SerialUSB.print("publicKey64Bytes: ");
+  Serial.print("publicKey64Bytes: ");
   for (int i = 0; i < sizeof(publicKey64Bytes) ; i++)
   {
-    SerialUSB.print(publicKey64Bytes[i], HEX);
-    SerialUSB.print(",");
+    Serial.print(publicKey64Bytes[i], HEX);
+    Serial.print(",");
   }
-  SerialUSB.println();
+  Serial.println();
   
   
   if( (checkCountResult == false) || (checkCrcResult == false) ) return false;
@@ -643,25 +646,25 @@ boolean ATECCX08A::loadTempKey(uint8_t *data)
   // append data
   memcpy(&packet_to_CRC[0], &complete_message[1], (5+32));
   
-      SerialUSB.println("packet_to_CRC: ");
+      Serial.println("packet_to_CRC: ");
     for (int i = 0; i < sizeof(packet_to_CRC) ; i++)
     {
-	  SerialUSB.print(packet_to_CRC[i], HEX);
-	  SerialUSB.print(",");
+	  Serial.print(packet_to_CRC[i], HEX);
+	  Serial.print(",");
     }
-    SerialUSB.println();
+    Serial.println();
   
   atca_calculate_crc((5+32), packet_to_CRC); // count includes crc[0] and crc[1], so we must subtract 2 before creating crc
-  SerialUSB.println(crc[0], HEX);
-  SerialUSB.println(crc[1], HEX);
+  Serial.println(crc[0], HEX);
+  Serial.println(crc[1], HEX);
 
   // append crcs
   memcpy(&complete_message[6+32], &crc[0], 2);  
 
   wakeUp();
   
-  SerialUSB.print("complete_message_length: ");
-  SerialUSB.println(complete_message_length);
+  Serial.print("complete_message_length: ");
+  Serial.println(complete_message_length);
   
   // begin I2C sending - 
   
@@ -727,8 +730,8 @@ boolean ATECCX08A::read(byte zone, byte address, byte length, boolean debug)
   // update CRCs
   uint8_t packet_to_CRC[] = {count, command, param1, param2a, param2b};
   atca_calculate_crc((count - 2), packet_to_CRC); // count includes crc[0] and crc[1], so we must subtract 2 before creating crc
-  //SerialUSB.println(crc[0], HEX);
-  //SerialUSB.println(crc[1], HEX);
+  //Serial.println(crc[0], HEX);
+  //Serial.println(crc[1], HEX);
 
   // create complete message using newly created/updated crc values
   byte complete_message[9] = {WORD_ADDRESS_VALUE_COMMAND, count, command, param1, param2a, param2b, crc[0], crc[1]};
@@ -787,25 +790,25 @@ boolean ATECCX08A::write(byte zone, byte address, byte length, const byte data[]
   // append data
   memcpy(&packet_to_CRC[0], &complete_message[1], (5+length));
   
-      SerialUSB.println("packet_to_CRC: ");
+      Serial.println("packet_to_CRC: ");
     for (int i = 0; i < sizeof(packet_to_CRC) ; i++)
     {
-	  SerialUSB.print(packet_to_CRC[i], HEX);
-	  SerialUSB.print(",");
+	  Serial.print(packet_to_CRC[i], HEX);
+	  Serial.print(",");
     }
-    SerialUSB.println();
+    Serial.println();
   
   atca_calculate_crc((5+length), packet_to_CRC); // count includes crc[0] and crc[1], so we must subtract 2 before creating crc
-  SerialUSB.println(crc[0], HEX);
-  SerialUSB.println(crc[1], HEX);
+  Serial.println(crc[0], HEX);
+  Serial.println(crc[1], HEX);
 
   // append crcs
   memcpy(&complete_message[6+length], &crc[0], 2);  
 
   wakeUp();
   
-  SerialUSB.print("complete_message_length: ");
-  SerialUSB.println(complete_message_length);
+  Serial.print("complete_message_length: ");
+  Serial.println(complete_message_length);
   
   // begin I2C sending - 
   
@@ -838,8 +841,8 @@ boolean ATECCX08A::createSignature(uint8_t slot)
   // update CRCs
   uint8_t packet_to_CRC[] = {count, command, param1, param2a, param2b};
   atca_calculate_crc((count - 2), packet_to_CRC); // count includes crc[0] and crc[1], so we must subtract 2 before creating crc
-  //SerialUSB.println(crc[0], HEX);
-  //SerialUSB.println(crc[1], HEX);
+  //Serial.println(crc[0], HEX);
+  //Serial.println(crc[1], HEX);
 
   // create complete message using newly created/updated crc values
   byte complete_message[9] = {WORD_ADDRESS_VALUE_COMMAND, count, command, param1, param2a, param2b, crc[0], crc[1]};
@@ -866,13 +869,13 @@ boolean ATECCX08A::createSignature(uint8_t slot)
     signature[i] = inputBuffer[i + 1];
   }
   
-  SerialUSB.print("signature: ");
+  Serial.print("signature: ");
   for (int i = 0; i < sizeof(signature) ; i++)
   {
-    SerialUSB.print(signature[i], HEX);
-    SerialUSB.print(",");
+    Serial.print(signature[i], HEX);
+    Serial.print(",");
   }
-  SerialUSB.println();
+  Serial.println();
   
   
   if( (checkCountResult == false) || (checkCrcResult == false) ) return false;
@@ -883,12 +886,12 @@ boolean ATECCX08A::createSignature(uint8_t slot)
 
 boolean ATECCX08A::verifySignature(uint8_t *message, uint8_t *signature, uint8_t slot, uint8_t type)
 {
-  verify(message, signature, NULL, slot, type); // public key arg is ignored when using interally stored keys
+  return verify(message, signature, NULL, slot, type); // public key arg is ignored when using interally stored keys
 }
 
 boolean ATECCX08A::verifySignatureExternal(uint8_t *message, uint8_t *signature, uint8_t *publicKey, uint8_t type)
 {
-  verify(message, signature, publicKey, 0, type); // slot is ignored when using external public key
+  return verify(message, signature, publicKey, 0, type); // slot is ignored when using external public key
 }
 
 
@@ -899,7 +902,7 @@ boolean ATECCX08A::verify(uint8_t *message, uint8_t *signature, uint8_t *publicK
   boolean loadTempKeyResult = loadTempKey(message);
   if(loadTempKeyResult == false) 
   {
-    SerialUSB.println("Load TempKey Failure");
+    Serial.println("Load TempKey Failure");
     return false;
   }
   
@@ -942,25 +945,25 @@ boolean ATECCX08A::verify(uint8_t *message, uint8_t *signature, uint8_t *publicK
   // append data
   memcpy(&packet_to_CRC[0], &complete_message[1], (complete_message_length-3));
   
-      SerialUSB.println("packet_to_CRC: ");
+      Serial.println("packet_to_CRC: ");
     for (int i = 0; i < sizeof(packet_to_CRC) ; i++)
     {
-	  SerialUSB.print(packet_to_CRC[i], HEX);
-	  SerialUSB.print(",");
+	  Serial.print(packet_to_CRC[i], HEX);
+	  Serial.print(",");
     }
-    SerialUSB.println();
+    Serial.println();
   
   atca_calculate_crc((complete_message_length-3), packet_to_CRC); // count includes crc[0] and crc[1], so we must subtract 2 before creating crc
-  SerialUSB.println(crc[0], HEX);
-  SerialUSB.println(crc[1], HEX);
+  Serial.println(crc[0], HEX);
+  Serial.println(crc[1], HEX);
 
   // append crcs
   memcpy(&complete_message[complete_message_length-2], &crc[0], 2);  
 
   wakeUp();
   
-  SerialUSB.print("complete_message_length: ");
-  SerialUSB.println(complete_message_length);
+  Serial.print("complete_message_length: ");
+  Serial.println(complete_message_length);
   
   // begin I2C sending - 
   

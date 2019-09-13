@@ -87,6 +87,21 @@
 #define ADDRESS_CONFIG_BLOCK_2 0b00010000 // param2 (byte 0), address block bits: _ _ _ 1  0 _ _ _ 
 #define ADDRESS_CONFIG_BLOCK_3 0b00011000 // param2 (byte 0), address block bits: _ _ _ 1  1 _ _ _ 
 
+#define ADDRESS_DATA_SLOT9 0b01001000 // param2 (byte 0), slot 9, zero offset
+
+// Address Encoding for Data Zone (Param2) Table 9-6. ds pg 58 
+// Byte 1, (slots 9-15)
+// 0 0 0 0  0 0 _ _ 	Bits 7-2 UNUSED
+// _ _ _ _  _ _ 0 0 	Bits 1-0 Block number (in this example, we use block 0, so "0 0")
+
+// Byte 0, (slots 9-15)
+// 0 _ _ _  _ _ _ _ 	Bit 7 UNUSED
+// _ 1 0 0  1 _ _ _ 	Bits 6-3 Slot Number (in this example, we use slot 9, so "1 0 0 1"
+// _ _ _ _  _ 0 0 0 	Bits 2-0 Word Offset (in this example, we don't want any offset, so "0 0 0"
+
+
+
+
 #define ADDRESS_DATA_SLOT1 0b0000 0000 // 
 
 class ATECCX08A {
