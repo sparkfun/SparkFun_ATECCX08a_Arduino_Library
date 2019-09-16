@@ -64,8 +64,14 @@
 #define COMMAND_OPCODE_VERIFY 	0x45 // takes an ECDSA <R,S> signature and verifies that it is correctly generated from a given message and public key
 
 // Lock command PARAM1 zone options (aka Mode). more info at table on datasheet page 75
-#define LOCK_ZONE_CONFIG 			0b10000000
-#define LOCK_ZONE_DATA_AND_OTP 		0b10000001
+// 		? _ _ _  _ _ _ _ 	Bits 7 verify zone summary, 1 = ignore summary and write to zone!
+// 		_ ? _ _  _ _ _ _ 	Bits 6 Unused, must be zero
+// 		_ _ ? ?  ? ? _ _ 	Bits 5-2 Slot number (in this example, we use slot 0, so "0 0 0 0")
+// 		_ _ _ _  _ _ ? ? 	Bits 1-0 Zone or locktype. 00=Config, 01=Data/OTP, 10=Single Slot in Data, 11=illegal
+
+#define LOCK_MODE_ZONE_CONFIG 				0b10000000
+#define LOCK_MODE_ZONE_DATA_AND_OTP 		0b10000001
+#define LOCK_MODE_SLOT0						0b10000010
 
 // GenKey command PARAM1 zone options (aka Mode). more info at table on datasheet page 71
 #define GENKEY_MODE_PUBLIC 			0b00000000
@@ -128,8 +134,10 @@ class ATECCX08A {
 	boolean wakeUp();
 	void idleMode();
 	boolean getInfo();
+	boolean writeConfigSparkFun();
 	boolean lockConfig(); // note, this PERMINANTLY disables changes to config zone - including changing the I2C address!
 	boolean lockDataAndOTP();
+	boolean lockDataSlot0();
 	boolean lock(byte zone);
 	
 	// Random array and fuctions
@@ -147,6 +155,7 @@ class ATECCX08A {
 	boolean storeKeyInSlot(byte slot = 0);
 	
 	boolean createNewKeyPair(uint8_t slot = 0);
+	boolean generatePublicKey(uint8_t slot = 0);
 	boolean loadTempKey(uint8_t *message);
 	boolean createSignature(uint8_t slot = 0); // create signature using contents of TempKey and PRIVATE KEY in slot
 	boolean verifySignature(uint8_t *message, uint8_t *signature, uint8_t slot = 0, uint8_t type = VERIFY_PARAM2_KEYTYPE_ECC);  // stored key (accepts slot argument)
@@ -156,7 +165,7 @@ class ATECCX08A {
 	boolean read(byte zone, byte address, byte length = 4, boolean debug = false);
 	boolean write(byte zone, byte address, byte length, const byte data[]);
 
-	boolean readConfigZone(boolean debug = false);
+	boolean readConfigZone(boolean debug = true);
 	
   private:
 

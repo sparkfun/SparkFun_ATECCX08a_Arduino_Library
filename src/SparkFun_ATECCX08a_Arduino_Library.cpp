@@ -161,7 +161,7 @@ boolean ATECCX08A::getInfo()
 
 boolean ATECCX08A::lockConfig()
 {
-  return lock(LOCK_ZONE_CONFIG);
+  return lock(LOCK_MODE_ZONE_CONFIG);
 }
 
 /** \brief
@@ -218,7 +218,20 @@ boolean ATECCX08A::readConfigZone(boolean debug)
 
 boolean ATECCX08A::lockDataAndOTP()
 {
-  return lock(LOCK_ZONE_DATA_AND_OTP);
+  return lock(LOCK_MODE_ZONE_DATA_AND_OTP);
+}
+
+/** \brief
+
+	lockDataSlot0()
+	
+	This function sends the LOCK Command with the Slot 0 zone parameter, 
+	and listens for success response (0x00).
+*/
+
+boolean ATECCX08A::lockDataSlot0()
+{
+  return lock(LOCK_MODE_SLOT0);
 }
 
 /** \brief
@@ -258,7 +271,7 @@ boolean ATECCX08A::lock(byte zone)
   
   // Now let's read back from the IC and see if it reports back good things.
   countGlobal = 0; 
-  if(receiveResponseData(4, true) == false) return false;
+  if(receiveResponseData(4) == false) return false;
   idleMode();
   if(checkCount() == false) return false;
   if(checkCrc() == false) return false;
@@ -592,7 +605,62 @@ boolean ATECCX08A::createNewKeyPair(byte slot)
 
   // Now let's read back from the IC.
   
-  if(receiveResponseData(64 + 2 + 1, true) == false) return false; // public key (64), plus crc (2), plus count (1)
+  if(receiveResponseData(64 + 2 + 1) == false) return false; // public key (64), plus crc (2), plus count (1)
+  idleMode();
+  boolean checkCountResult = checkCount(true);
+  boolean checkCrcResult = checkCrc(true);
+  
+  // update publicKey64Bytes[] array
+  // we don't need the count value (which is currently the first byte of the inputBuffer)
+  for (int i = 0 ; i < 64 ; i++) // for loop through to grab all but the first position (which is "count" of the message)
+  {
+    publicKey64Bytes[i] = inputBuffer[i + 1];
+  }
+  
+  Serial.print("publicKey64Bytes: ");
+  for (int i = 0; i < sizeof(publicKey64Bytes) ; i++)
+  {
+    Serial.print(publicKey64Bytes[i], HEX);
+    Serial.print(",");
+  }
+  Serial.println();
+  
+  
+  if( (checkCountResult == false) || (checkCrcResult == false) ) return false;
+  
+  return true;
+}
+
+boolean ATECCX08A::generatePublicKey(uint8_t slot)
+{
+  // build packet array to complete a communication to IC
+  // It expects to see word address, count, command, param1, param2, CRC1, CRC2
+  uint8_t count = 0x07;
+  uint8_t command = COMMAND_OPCODE_GENKEY;
+  uint8_t param1 = GENKEY_MODE_PUBLIC;
+  uint8_t param2a = 0x00;
+  uint8_t param2b = slot; // defult is 0
+
+  // update CRCs
+  uint8_t packet_to_CRC[] = {count, command, param1, param2a, param2b};
+  atca_calculate_crc((count - 2), packet_to_CRC); // count includes crc[0] and crc[1], so we must subtract 2 before creating crc
+  //Serial.println(crc[0], HEX);
+  //Serial.println(crc[1], HEX);
+
+  // create complete message using newly created/updated crc values
+  byte complete_message[9] = {WORD_ADDRESS_VALUE_COMMAND, count, command, param1, param2a, param2b, crc[0], crc[1]};
+
+  wakeUp();
+  
+  _i2cPort->beginTransmission(_i2caddr);
+  _i2cPort->write(complete_message, 8);
+  _i2cPort->endTransmission();
+
+  delay(115); // time for IC to process command and exectute
+
+  // Now let's read back from the IC.
+  
+  if(receiveResponseData(64 + 2 + 1) == false) return false; // public key (64), plus crc (2), plus count (1)
   idleMode();
   boolean checkCountResult = checkCount(true);
   boolean checkCrcResult = checkCrc(true);
@@ -790,25 +858,25 @@ boolean ATECCX08A::write(byte zone, byte address, byte length, const byte data[]
   // append data
   memcpy(&packet_to_CRC[0], &complete_message[1], (5+length));
   
-      Serial.println("packet_to_CRC: ");
-    for (int i = 0; i < sizeof(packet_to_CRC) ; i++)
-    {
-	  Serial.print(packet_to_CRC[i], HEX);
-	  Serial.print(",");
-    }
-    Serial.println();
+  //    Serial.println("packet_to_CRC: ");
+  //  for (int i = 0; i < sizeof(packet_to_CRC) ; i++)
+  //  {
+  //	  Serial.print(packet_to_CRC[i], HEX);
+  //	  Serial.print(",");
+  //  }
+  //  Serial.println();
   
   atca_calculate_crc((5+length), packet_to_CRC); // count includes crc[0] and crc[1], so we must subtract 2 before creating crc
-  Serial.println(crc[0], HEX);
-  Serial.println(crc[1], HEX);
+  //Serial.println(crc[0], HEX);
+  //Serial.println(crc[1], HEX);
 
   // append crcs
   memcpy(&complete_message[6+length], &crc[0], 2);  
 
   wakeUp();
   
-  Serial.print("complete_message_length: ");
-  Serial.println(complete_message_length);
+  //Serial.print("complete_message_length: ");
+  //Serial.println(complete_message_length);
   
   // begin I2C sending - 
   
@@ -822,7 +890,7 @@ boolean ATECCX08A::write(byte zone, byte address, byte length, const byte data[]
   
   // Now let's read back from the IC and see if it reports back good things.
   countGlobal = 0; 
-  if(receiveResponseData(4, true) == false) return false;
+  if(receiveResponseData(4) == false) return false;
   idleMode();
   if(checkCount() == false) return false;
   if(checkCrc() == false) return false;
@@ -988,6 +1056,38 @@ boolean ATECCX08A::verify(uint8_t *message, uint8_t *signature, uint8_t *publicK
   else return false;
   
 }
+
+boolean ATECCX08A::writeConfigSparkFun()
+{
+  // keep track of our write command results.
+  boolean result1; 
+  boolean result2;
+  
+  // set keytype on slot 0 and 1 to 0x3300
+  // Lockable, ECC, PuInfo set (public key always allowed to be generated), contains a private Key
+  const uint8_t data1[] = {0x33, 0x00, 0x33, 0x00}; // 0x3300 sets the keyconfig.keyType, see datasheet pg 20
+  result1 = write(ZONE_CONFIG, (96 / 4), 4, data1);
+  // set slot config on slot 0 and 1 to 0x8320
+  // EXT signatures, INT signatures, IsSecret, Write config never
+  const uint8_t data2[] = {0x83, 0x20, 0x83, 0x20}; // for slot config bit definitions see datasheet pg 20
+  result2 = write(ZONE_CONFIG, (20 / 4), 4, data2);
+  
+  return (result1 && result2);
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
