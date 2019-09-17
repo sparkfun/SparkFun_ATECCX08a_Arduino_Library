@@ -966,20 +966,7 @@ boolean ATECCX08A::signTempKey(uint8_t slot)
   }
   else return false;
 }
-
-boolean ATECCX08A::verifySignature(uint8_t *message, uint8_t *signature, uint8_t slot, uint8_t type)
-{
-  return verify(message, signature, NULL, slot, type); // public key arg is ignored when using interally stored keys
-}
-
-boolean ATECCX08A::verifySignatureExternal(uint8_t *message, uint8_t *signature, uint8_t *publicKey, uint8_t type)
-{
-  return verify(message, signature, publicKey, 0, type); // slot is ignored when using external public key
-}
-
-
-
-boolean ATECCX08A::verify(uint8_t *message, uint8_t *signature, uint8_t *publicKey, uint8_t slot, uint8_t type)
+boolean ATECCX08A::verifySignature(uint8_t *message, uint8_t *signature, uint8_t *publicKey)
 {
   // first, let's load the message into TempKey on the device, this uses NONCE command in passthrough mode.
   boolean loadTempKeyResult = loadTempKey(message);
@@ -989,87 +976,58 @@ boolean ATECCX08A::verify(uint8_t *message, uint8_t *signature, uint8_t *publicK
     return false;
   }
   
-  // second, let's run the verify command using TempKey as our data, also sending it slot and type (default slot 0, type ECC).
-
-  // check to see if we're external or stored, this will determine if we need to send data3 or data4 (the external public key)
-  // this effects our data length.
-  
   uint8_t complete_message_length;
-  uint8_t mode;
-  
-  if(publicKey != NULL)
-  {
-    complete_message_length = (8 + 128);
-	mode = VERIFY_MODE_EXTERNAL;
-  }
-  else
-  {
-    complete_message_length = (8 + 64); // stored, so we don't have to send public key (64 more bytes).
-	mode = VERIFY_MODE_STORED;	
-  }
-  
+  complete_message_length = (8 + 64 + 64); // command(8), signature (64), external public key (64)
+
   uint8_t complete_message[complete_message_length];
   complete_message[0] = WORD_ADDRESS_VALUE_COMMAND; // word address value (type command)
-  complete_message[1] = complete_message_length-1; 						// count
+  complete_message[1] = complete_message_length-1; 	// count
   complete_message[2] = COMMAND_OPCODE_VERIFY; 		// command
-  complete_message[3] = mode;						// param1
-  complete_message[4] = type;						// param2a
+  complete_message[3] = VERIFY_MODE_EXTERNAL;		// param1
+  complete_message[4] = VERIFY_PARAM2_KEYTYPE_ECC;	// param2a
   complete_message[5] = 0x00;						// param2b
   memcpy(&complete_message[6], &signature[0], 64);	// append signature
-  
-  if(publicKey != NULL)
-  {
-    memcpy(&complete_message[70], &publicKey[0], 64);	// append external public key
-  }
-  
+  memcpy(&complete_message[70], &publicKey[0], 64);	// append external public key
   
   // update CRCs
   uint8_t packet_to_CRC[complete_message_length-3]; // minus word address and two crcs.
   // append data
   memcpy(&packet_to_CRC[0], &complete_message[1], (complete_message_length-3));
   
-      Serial.println("packet_to_CRC: ");
-    for (int i = 0; i < sizeof(packet_to_CRC) ; i++)
-    {
-	  Serial.print(packet_to_CRC[i], HEX);
-	  Serial.print(",");
-    }
-    Serial.println();
+  //    Serial.println("packet_to_CRC: ");
+  //  for (int i = 0; i < sizeof(packet_to_CRC) ; i++)
+  //  {
+  //  Serial.print(packet_to_CRC[i], HEX);
+  //  Serial.print(",");
+  //  }
+  //  Serial.println();
   
   atca_calculate_crc((complete_message_length-3), packet_to_CRC); // count includes crc[0] and crc[1], so we must subtract 2 before creating crc
-  Serial.println(crc[0], HEX);
-  Serial.println(crc[1], HEX);
+  //Serial.println(crc[0], HEX);
+  //Serial.println(crc[1], HEX);
 
   // append crcs
   memcpy(&complete_message[complete_message_length-2], &crc[0], 2);  
 
   wakeUp();
   
-  Serial.print("complete_message_length: ");
-  Serial.println(complete_message_length);
-  
-  // begin I2C sending - 
-  
   _i2cPort->beginTransmission(_i2caddr);
   _i2cPort->write(complete_message, complete_message_length); 
   _i2cPort->endTransmission();
-
-  // end I2C sending - 
 
   delay(58); // time for IC to process command and exectute
 
   // Now let's read back from the IC.
   
-  if(receiveResponseData(4, true) == false) return false;
+  if(receiveResponseData(4) == false) return false;
   idleMode();
-  boolean checkCountResult = checkCount(true);
-  boolean checkCrcResult = checkCrc(true);
+  boolean checkCountResult = checkCount();
+  boolean checkCrcResult = checkCrc();
   
   if( (checkCountResult == false) || (checkCrcResult == false) ) return false;
   
   if(inputBuffer[1] == 0x00) return true;   // If we hear a "0x00", that means it had a successful verify
   else return false;
-  
 }
 
 boolean ATECCX08A::writeConfigSparkFun()

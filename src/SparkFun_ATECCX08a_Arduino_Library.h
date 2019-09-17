@@ -163,9 +163,7 @@ class ATECCX08A {
 	boolean createSignature(uint8_t *data, uint8_t slot = 0); 
 	boolean loadTempKey(uint8_t *data);  // load 32 bytes of data into tempKey (a temporary memory spot in the IC)
 	boolean signTempKey(uint8_t slot = 0); // create signature using contents of TempKey and PRIVATE KEY in slot
-	boolean verifySignature(uint8_t *message, uint8_t *signature, uint8_t slot = 0, uint8_t type = VERIFY_PARAM2_KEYTYPE_ECC);  // stored key (accepts slot argument)
-    boolean verifySignatureExternal(uint8_t *message, uint8_t *signature, uint8_t *publicKey, uint8_t type = VERIFY_PARAM2_KEYTYPE_ECC); // external publicKey
-	boolean verify(uint8_t *message, uint8_t *signature, uint8_t *publicKey, uint8_t slot = 0, uint8_t type = VERIFY_PARAM2_KEYTYPE_ECC);
+	boolean verifySignature(uint8_t *message, uint8_t *signature, uint8_t *publicKey); // external ECC publicKey only
 
 	boolean read(byte zone, byte address, byte length = 4, boolean debug = false);
 	boolean write(byte zone, byte address, byte length, const byte data[]);
