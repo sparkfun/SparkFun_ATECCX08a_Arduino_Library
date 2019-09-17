@@ -40,26 +40,44 @@ void setup() {
     Serial.println("Device not found. Check wiring.");
     while (1); // stall out forever
   }
-  
-  Serial.println("Would you like to configure your Cryptographic Co-processor with SparkFun Stadard settings? (y/n)");
-  
+
+  printInfo(); // see function below for library calls and data handling
+
+  Serial.println("Would you like to configure your Cryptographic Co-processor with SparkFun Standard settings? (y/n)");
+  Serial.println("***Note, this is PERMANENT and cannot be changed later***");
+
   while (Serial.available() == 0); // wait for user input
-  
+
   if (Serial.read() == 'y')
   {
+    Serial.println();
     Serial.println("Configuration beginning.");
-    if(atecc.writeConfigSparkFun() == false) Serial.println("Write failure (config)");
-    if(atecc.lockConfig() == false) Serial.println("Lock Failure (config)");   
-    if(atecc.createNewKeyPair() == false) Serial.println("Key Creation Failure");
-    if(atecc.lockDataAndOTP() == false) Serial.println("Lock Failure (Data/OTP)");
-    if(atecc.lockDataSlot0() == false) Serial.println("Lock Failure (Data Slot 0)");
-    atecc.readConfigZone(true);
-    //while(1);
-    atecc.generatePublicKey();
-    while(1);
-    
-    
+
+    Serial.print("Write Config: \t");
+    if (atecc.writeConfigSparkFun() == true) Serial.println("Success!");
+    else Serial.println("Failure.");
+
+    Serial.print("Lock Config: \t");
+    if (atecc.lockConfig() == true) Serial.println("Success!");
+    else Serial.println("Failure.");
+
+    Serial.print("Key Creation: \t");
+    if (atecc.createNewKeyPair() == true) Serial.println("Success!");
+    else Serial.println("Failure.");
+
+    Serial.print("Lock Data-OTP: \t");
+    if (atecc.lockDataAndOTP() == true) Serial.println("Success!");
+    else Serial.println("Failure.");
+
+    Serial.print("Lock Slot 0: \t");
+    if (atecc.lockDataSlot0() == true) Serial.println("Success!");
+    else Serial.println("Failure.");
+
+
     Serial.println("Configuration done.");
+    Serial.println();
+    
+    atecc.generatePublicKey();
   }
   else
   {
@@ -70,4 +88,44 @@ void setup() {
 void loop()
 {
   // do nothing.
+}
+
+void printInfo()
+{
+  // Read all 128 bytes of Configuration Zone
+  // These will be stored in an array within the instance named: atecc.configZone[128]
+  atecc.readConfigZone(false); // Debug argument false (OFF)
+
+  // Print useful information from configuration zone data
+  Serial.println();
+
+  Serial.print("Serial Number: \t");
+  for (int i = 0 ; i < 9 ; i++)
+  {
+    if ((atecc.serialNumber[i] >> 4) == 0) Serial.print("0"); // print preceeding high nibble if it's zero
+    Serial.print(atecc.serialNumber[i], HEX);
+  }
+  Serial.println();
+
+  Serial.print("Rev Number: \t");
+  for (int i = 0 ; i < 4 ; i++)
+  {
+    if ((atecc.revisionNumber[i] >> 4) == 0) Serial.print("0"); // print preceeding high nibble if it's zero
+    Serial.print(atecc.revisionNumber[i], HEX);
+  }
+  Serial.println();
+
+  Serial.print("Config Zone: \t");
+  if (atecc.configLockStatus) Serial.println("Locked");
+  else Serial.println("NOT Locked");
+
+  Serial.print("Data/OTP Zone: \t");
+  if (atecc.dataOTPLockStatus) Serial.println("Locked");
+  else Serial.println("NOT Locked");
+
+  Serial.print("Data Slot 0: \t");
+  if (atecc.slot0LockStatus) Serial.println("Locked");
+  else Serial.println("NOT Locked");
+
+  Serial.println();
 }

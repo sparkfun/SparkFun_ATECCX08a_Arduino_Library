@@ -122,6 +122,12 @@ class ATECCX08A {
 	
 	byte inputBuffer[128]; // used to store messages received from the IC as they come in
 	byte configZone[128]; // used to store configuration zone bytes read from device EEPROM
+	uint8_t revisionNumber[5]; // used to store the complete revision number, pulled from configZone[4-7]
+	uint8_t serialNumber[10]; // used to store the complete Serial number, pulled from configZone[0-3] and configZone[8-12]
+	boolean configLockStatus; // pulled from configZone[87], then set according to status (0x55=UNlocked, 0x00=Locked)
+	boolean dataOTPLockStatus; // pulled from configZone[86], then set according to status (0x55=UNlocked, 0x00=Locked)
+	boolean slot0LockStatus; // pulled from configZone[88], then set according to slot (bit 0) status
+	
 	byte publicKey64Bytes[64]; // used to store the public key returned when you (1) create a keypair, or (2) read a public key
 	uint8_t signature[64];
 	
@@ -151,11 +157,10 @@ class ATECCX08A {
 	void atca_calculate_crc(uint8_t length, uint8_t *data);	
 	
 	// Key functions
-	boolean readKeySlot(byte slot = 0);
-	boolean storeKeyInSlot(byte slot = 0);
-	
 	boolean createNewKeyPair(uint8_t slot = 0);
-	boolean generatePublicKey(uint8_t slot = 0);
+	boolean generatePublicKey(uint8_t slot = 0, boolean debug = true);
+	
+	
 	boolean loadTempKey(uint8_t *message);
 	boolean createSignature(uint8_t slot = 0); // create signature using contents of TempKey and PRIVATE KEY in slot
 	boolean verifySignature(uint8_t *message, uint8_t *signature, uint8_t slot = 0, uint8_t type = VERIFY_PARAM2_KEYTYPE_ECC);  // stored key (accepts slot argument)

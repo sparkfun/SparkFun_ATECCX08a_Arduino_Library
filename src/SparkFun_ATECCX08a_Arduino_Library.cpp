@@ -189,6 +189,23 @@ boolean ATECCX08A::readConfigZone(boolean debug)
   read(ZONE_CONFIG, ADDRESS_CONFIG_BLOCK_3, 32); 	// read block 3
   memcpy(&configZone[96], &inputBuffer[1], 32); 	// copy block 3  
   
+  // pull out serial number from configZone, and copy to public variable within this instance
+  memcpy(&serialNumber[0], &configZone[0], 4); 	// copy SN<0:3> 
+  memcpy(&serialNumber[4], &configZone[8], 5); 	// copy SN<4:8> 
+  
+  // pull out revision number from configZone, and copy to public variable within this instance
+  memcpy(&revisionNumber[0], &configZone[4], 4); 	// copy RevNum<0:3>   
+  
+  // set lock statuses for config, data/otp, and slot 0
+  if(configZone[87] == 0x00) configLockStatus = true;
+  else configLockStatus = false;
+  
+  if(configZone[86] == 0x00) dataOTPLockStatus = true;
+  else dataOTPLockStatus = false;
+  
+  if( (configZone[88] & (1<<0) ) == true) slot0LockStatus = false; // LSB is slot 0. if bit set = UN-locked.
+  else slot0LockStatus = true;
+  
   if(debug)
   {
     Serial.println("configZone: ");
@@ -196,7 +213,7 @@ boolean ATECCX08A::readConfigZone(boolean debug)
     {
       Serial.print(i);
 	  Serial.print(": 0x");
-	  if((configZone[i] >> 4) == 0) Serial.print("0"); // print preceeding high byte if it's zero
+	  if((configZone[i] >> 4) == 0) Serial.print("0"); // print preceeding high nibble if it's zero
 	  Serial.print(configZone[i], HEX); 
 	  Serial.print(" \t0b");
 	  for(int bit = 7; bit >= 0; bit--) Serial.print(bitRead(configZone[i],bit)); // print binary WITH preceding '0' bits
@@ -204,6 +221,7 @@ boolean ATECCX08A::readConfigZone(boolean debug)
     }
     Serial.println();
   }
+  
   
   return true;
 }
@@ -488,7 +506,7 @@ boolean ATECCX08A::checkCount(boolean debug)
   // Check count; the first byte sent from IC is count, and it should be equal to the actual message count
   if(inputBuffer[0] != countGlobal) 
   {
-	Serial.println("Message Count Error");
+	if(debug) Serial.println("Message Count Error");
 	return false;
   }  
   return true;
@@ -519,7 +537,7 @@ boolean ATECCX08A::checkCrc(boolean debug)
   
   if( (inputBuffer[countGlobal-1] != crc[1]) || (inputBuffer[countGlobal-2] != crc[0]) )   // then check the CRCs.
   {
-	Serial.println("Message CRC Error");
+	if(debug) Serial.println("Message CRC Error");
 	return false;
   }
   
@@ -607,31 +625,24 @@ boolean ATECCX08A::createNewKeyPair(byte slot)
   
   if(receiveResponseData(64 + 2 + 1) == false) return false; // public key (64), plus crc (2), plus count (1)
   idleMode();
-  boolean checkCountResult = checkCount(true);
-  boolean checkCrcResult = checkCrc(true);
+  boolean checkCountResult = checkCount();
+  boolean checkCrcResult = checkCrc();
+  
   
   // update publicKey64Bytes[] array
-  // we don't need the count value (which is currently the first byte of the inputBuffer)
-  for (int i = 0 ; i < 64 ; i++) // for loop through to grab all but the first position (which is "count" of the message)
+  if(checkCountResult && checkCrcResult) // check that it was a good message
   {
-    publicKey64Bytes[i] = inputBuffer[i + 1];
+	// we don't need the count value (which is currently the first byte of the inputBuffer)
+	for (int i = 0 ; i < 64 ; i++) // for loop through to grab all but the first position (which is "count" of the message)
+	{
+	  publicKey64Bytes[i] = inputBuffer[i + 1];
+	}
+	return true;
   }
-  
-  Serial.print("publicKey64Bytes: ");
-  for (int i = 0; i < sizeof(publicKey64Bytes) ; i++)
-  {
-    Serial.print(publicKey64Bytes[i], HEX);
-    Serial.print(",");
-  }
-  Serial.println();
-  
-  
-  if( (checkCountResult == false) || (checkCrcResult == false) ) return false;
-  
-  return true;
+  else return false;
 }
 
-boolean ATECCX08A::generatePublicKey(uint8_t slot)
+boolean ATECCX08A::generatePublicKey(uint8_t slot, boolean debug)
 {
   // build packet array to complete a communication to IC
   // It expects to see word address, count, command, param1, param2, CRC1, CRC2
@@ -662,29 +673,33 @@ boolean ATECCX08A::generatePublicKey(uint8_t slot)
   
   if(receiveResponseData(64 + 2 + 1) == false) return false; // public key (64), plus crc (2), plus count (1)
   idleMode();
-  boolean checkCountResult = checkCount(true);
-  boolean checkCrcResult = checkCrc(true);
+  boolean checkCountResult = checkCount();
+  boolean checkCrcResult = checkCrc();
   
   // update publicKey64Bytes[] array
-  // we don't need the count value (which is currently the first byte of the inputBuffer)
-  for (int i = 0 ; i < 64 ; i++) // for loop through to grab all but the first position (which is "count" of the message)
-  {
-    publicKey64Bytes[i] = inputBuffer[i + 1];
+  if(checkCountResult && checkCrcResult) // check that it was a good message
+  {  
+    // we don't need the count value (which is currently the first byte of the inputBuffer)
+    for (int i = 0 ; i < 64 ; i++) // for loop through to grab all but the first position (which is "count" of the message)
+    {
+      publicKey64Bytes[i] = inputBuffer[i + 1];
+    }
+  
+    Serial.print("uint8_t publicKey[64] = {\n\r");
+    for (int i = 0; i < sizeof(publicKey64Bytes) ; i++)
+    {
+	  Serial.print("0x");
+	  if((publicKey64Bytes[i] >> 4) == 0) Serial.print("0"); // print preceeding high nibble if it's zero
+      Serial.print(publicKey64Bytes[i], HEX);
+      if(i != 63) Serial.print(",");
+	  if((63-i) % 16 == 0) Serial.println();
+    }
+	Serial.println("};");
+	return true;
   }
-  
-  Serial.print("publicKey64Bytes: ");
-  for (int i = 0; i < sizeof(publicKey64Bytes) ; i++)
-  {
-    Serial.print(publicKey64Bytes[i], HEX);
-    Serial.print(",");
-  }
-  Serial.println();
-  
-  
-  if( (checkCountResult == false) || (checkCrcResult == false) ) return false;
-  
-  return true;
+  else return false;
 }
+
 
 boolean ATECCX08A::loadTempKey(uint8_t *data)
 {
@@ -755,16 +770,6 @@ boolean ATECCX08A::loadTempKey(uint8_t *data)
   
   if(inputBuffer[1] == 0x00) return true;   // If we hear a "0x00", that means it had a successful nonce
   else return false;
-
-}
-
-boolean ATECCX08A::readKeySlot(byte slot)
-{
-
-}
-
-boolean ATECCX08A::storeKeyInSlot(byte slot)
-{
 
 }
 
