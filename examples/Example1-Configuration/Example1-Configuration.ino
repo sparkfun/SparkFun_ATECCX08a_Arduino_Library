@@ -73,16 +73,16 @@ void setup() {
     if (atecc.lockDataSlot0() == true) Serial.println("Success!");
     else Serial.println("Failure.");
 
-
     Serial.println("Configuration done.");
     Serial.println();
-    
-    atecc.generatePublicKey();
   }
   else
   {
     Serial.println("Unfortunately, you cannot use any features of the ATECCX08A without configuration and locking.");
   }
+
+  // if everything is locked up, then configuration is complete, so let's print the private key
+  if (atecc.configLockStatus && atecc.dataOTPLockStatus && atecc.slot0LockStatus) atecc.generatePublicKey();
 }
 
 void loop()
