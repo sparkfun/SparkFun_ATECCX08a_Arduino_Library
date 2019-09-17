@@ -699,80 +699,6 @@ boolean ATECCX08A::generatePublicKey(uint8_t slot, boolean debug)
   }
   else return false;
 }
-
-
-boolean ATECCX08A::loadTempKey(uint8_t *data)
-{
-  // We will use the NONCE command in passthrough mode to load tempKey with our message.
-  // Note, the datasheet warns that this does not provide protection agains replay attacks,
-  // but we will protect again this because our server is going to send us it's own unique NONCE,
-  // when it requests data, and we will add this into our message.
-  uint8_t count = 0x27; // 7 for standard command + 32 bytes of mesage = 39 (or 0x27)
-  uint8_t command = COMMAND_OPCODE_NONCE;
-  uint8_t param1 = NONCE_MODE_PASSTHROUGH;
-  uint8_t param2a = 0x00;
-  uint8_t param2b = 0x00;
-
-  uint8_t complete_message_length = (8 + 32);
-  uint8_t complete_message[complete_message_length];
-  complete_message[0] = WORD_ADDRESS_VALUE_COMMAND; // word address value (type command)
-  complete_message[1] = complete_message_length-1; 						// count
-  complete_message[2] = COMMAND_OPCODE_NONCE; 		// command
-  complete_message[3] = NONCE_MODE_PASSTHROUGH;		// param1
-  complete_message[4] = 0x00;						// param2a
-  complete_message[5] = 0x00;						// param2b
-  memcpy(&complete_message[6], &data[0], 32);	// data
-  
-  
-  // update CRCs
-  uint8_t packet_to_CRC[5+32];
-  // append data
-  memcpy(&packet_to_CRC[0], &complete_message[1], (5+32));
-  
-      Serial.println("packet_to_CRC: ");
-    for (int i = 0; i < sizeof(packet_to_CRC) ; i++)
-    {
-	  Serial.print(packet_to_CRC[i], HEX);
-	  Serial.print(",");
-    }
-    Serial.println();
-  
-  atca_calculate_crc((5+32), packet_to_CRC); // count includes crc[0] and crc[1], so we must subtract 2 before creating crc
-  Serial.println(crc[0], HEX);
-  Serial.println(crc[1], HEX);
-
-  // append crcs
-  memcpy(&complete_message[6+32], &crc[0], 2);  
-
-  wakeUp();
-  
-  Serial.print("complete_message_length: ");
-  Serial.println(complete_message_length);
-  
-  // begin I2C sending - 
-  
-  _i2cPort->beginTransmission(_i2caddr);
-  _i2cPort->write(complete_message, complete_message_length); 
-  _i2cPort->endTransmission();
-
-  // end I2C sending - 
-
-  delay(7); // time for IC to process command and exectute
-
-  // Now let's read back from the IC.
-  
-  if(receiveResponseData(4, true) == false) return false; // responds with "0x00" if NONCE executed properly
-  idleMode();
-  boolean checkCountResult = checkCount(true);
-  boolean checkCrcResult = checkCrc(true);
-  
-  if( (checkCountResult == false) || (checkCrcResult == false) ) return false;
-  
-  if(inputBuffer[1] == 0x00) return true;   // If we hear a "0x00", that means it had a successful nonce
-  else return false;
-
-}
-
 boolean ATECCX08A::read(byte zone, byte address, byte length, boolean debug)
 {
   // build packet array to complete a communication to IC
@@ -903,7 +829,87 @@ boolean ATECCX08A::write(byte zone, byte address, byte length, const byte data[]
   else return false;
 }
 
-boolean ATECCX08A::createSignature(uint8_t slot)
+
+
+boolean ATECCX08A::createSignature(uint8_t *data, uint8_t slot)
+{
+  boolean loadTempKeyResult = loadTempKey(data);
+  boolean signTempKeyResult = signTempKey(slot);
+  if(loadTempKeyResult && signTempKeyResult) return true;
+  else return false;
+}
+
+boolean ATECCX08A::loadTempKey(uint8_t *data)
+{
+  // We will use the NONCE command in passthrough mode to load tempKey with our message.
+  // Note, the datasheet warns that this does not provide protection agains replay attacks,
+  // but we will protect again this because our server is going to send us it's own unique NONCE,
+  // when it requests data, and we will add this into our message.
+  uint8_t count = 0x27; // 7 for standard command + 32 bytes of mesage = 39 (or 0x27)
+  uint8_t command = COMMAND_OPCODE_NONCE;
+  uint8_t param1 = NONCE_MODE_PASSTHROUGH;
+  uint8_t param2a = 0x00;
+  uint8_t param2b = 0x00;
+
+  uint8_t complete_message_length = (8 + 32);
+  uint8_t complete_message[complete_message_length];
+  complete_message[0] = WORD_ADDRESS_VALUE_COMMAND; // word address value (type command)
+  complete_message[1] = complete_message_length-1; 						// count
+  complete_message[2] = COMMAND_OPCODE_NONCE; 		// command
+  complete_message[3] = NONCE_MODE_PASSTHROUGH;		// param1
+  complete_message[4] = 0x00;						// param2a
+  complete_message[5] = 0x00;						// param2b
+  memcpy(&complete_message[6], &data[0], 32);	// data
+  
+  // update CRCs
+  uint8_t packet_to_CRC[5+32];
+  // append data
+  memcpy(&packet_to_CRC[0], &complete_message[1], (5+32));
+  
+  //    Serial.println("packet_to_CRC: ");
+  //  for (int i = 0; i < sizeof(packet_to_CRC) ; i++)
+  //  {
+  //  Serial.print(packet_to_CRC[i], HEX);
+  //  Serial.print(",");
+  //  }
+  //  Serial.println();
+  
+  atca_calculate_crc((5+32), packet_to_CRC); // count includes crc[0] and crc[1], so we must subtract 2 before creating crc
+  //Serial.println(crc[0], HEX);
+  //Serial.println(crc[1], HEX);
+
+  // append crcs
+  memcpy(&complete_message[6+32], &crc[0], 2);  
+
+  wakeUp();
+  
+  //Serial.print("complete_message_length: ");
+  //Serial.println(complete_message_length);
+  
+  // begin I2C sending - 
+  
+  _i2cPort->beginTransmission(_i2caddr);
+  _i2cPort->write(complete_message, complete_message_length); 
+  _i2cPort->endTransmission();
+
+  // end I2C sending - 
+
+  delay(7); // time for IC to process command and exectute
+
+  // Now let's read back from the IC.
+  
+  if(receiveResponseData(4) == false) return false; // responds with "0x00" if NONCE executed properly
+  idleMode();
+  boolean checkCountResult = checkCount();
+  boolean checkCrcResult = checkCrc();
+  
+  if( (checkCountResult == false) || (checkCrcResult == false) ) return false;
+  
+  if(inputBuffer[1] == 0x00) return true;   // If we hear a "0x00", that means it had a successful nonce
+  else return false;
+}
+
+boolean ATECCX08A::signTempKey(uint8_t slot)
 {
   uint8_t count = 0x07;
   uint8_t command = COMMAND_OPCODE_SIGN;
@@ -930,32 +936,35 @@ boolean ATECCX08A::createSignature(uint8_t slot)
 
   // Now let's read back from the IC.
   
-  if(receiveResponseData(64 + 2 + 1, true) == false) return false; // signature (64), plus crc (2), plus count (1)
+  if(receiveResponseData(64 + 2 + 1) == false) return false; // signature (64), plus crc (2), plus count (1)
   idleMode();
-  boolean checkCountResult = checkCount(true);
-  boolean checkCrcResult = checkCrc(true);
+  boolean checkCountResult = checkCount();
+  boolean checkCrcResult = checkCrc();
   
-  // update signature[] array
-  // we don't need the count value (which is currently the first byte of the inputBuffer)
-  for (int i = 0 ; i < 64 ; i++) // for loop through to grab all but the first position (which is "count" of the message)
-  {
-    signature[i] = inputBuffer[i + 1];
+  // update signature[] array and print it to serial terminal nicely formatted for easy copy/pasting between sketches
+  if(checkCountResult && checkCrcResult) // check that it was a good message
+  {  
+    // we don't need the count value (which is currently the first byte of the inputBuffer)
+    for (int i = 0 ; i < 64 ; i++) // for loop through to grab all but the first position (which is "count" of the message)
+    {
+      signature[i] = inputBuffer[i + 1];
+    }
+  
+	Serial.println();
+    Serial.println("uint8_t signature[64] = {");
+    for (int i = 0; i < sizeof(signature) ; i++)
+    {
+	  Serial.print("0x");
+	  if((signature[i] >> 4) == 0) Serial.print("0"); // print preceeding high nibble if it's zero
+      Serial.print(signature[i], HEX);
+      if(i != 63) Serial.print(", ");
+	  if((63-i) % 16 == 0) Serial.println();
+    }
+	Serial.println("};");
+	return true;
   }
-  
-  Serial.print("signature: ");
-  for (int i = 0; i < sizeof(signature) ; i++)
-  {
-    Serial.print(signature[i], HEX);
-    Serial.print(",");
-  }
-  Serial.println();
-  
-  
-  if( (checkCountResult == false) || (checkCrcResult == false) ) return false;
-  
-  return true;
+  else return false;
 }
-
 
 boolean ATECCX08A::verifySignature(uint8_t *message, uint8_t *signature, uint8_t slot, uint8_t type)
 {
