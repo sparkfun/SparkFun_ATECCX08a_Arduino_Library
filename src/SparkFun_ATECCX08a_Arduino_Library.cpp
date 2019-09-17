@@ -695,6 +695,7 @@ boolean ATECCX08A::generatePublicKey(uint8_t slot, boolean debug)
 	  if((63-i) % 16 == 0) Serial.println();
     }
 	Serial.println("};");
+	Serial.println();
 	return true;
   }
   else return false;

@@ -11,7 +11,7 @@
   This example shows how to create a digital signature (ECC type) on 32 bytes of data.
   Note, this requires that your device be configured with SparkFun Standard Configuration settings.
   By default, this example uses the private key securely stored and locked in slot 0.
-  
+
   Hardware Connections and initial setup:
   Install artemis in boards manager: http://boardsmanager/All#Sparkfun_artemis
   Plug in your controller board (e.g. Artemis Blackboard, Nano, ATP) into your computer with USB cable.
@@ -118,4 +118,7 @@ void printInfo()
   else Serial.println("NOT Locked");
 
   Serial.println();
+
+  // if everything is locked up, then configuration is complete, so let's print the public key
+  if (atecc.configLockStatus && atecc.dataOTPLockStatus && atecc.slot0LockStatus) atecc.generatePublicKey();
 }
