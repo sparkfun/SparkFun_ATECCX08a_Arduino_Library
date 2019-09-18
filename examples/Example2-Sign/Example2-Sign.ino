@@ -120,5 +120,12 @@ void printInfo()
   Serial.println();
 
   // if everything is locked up, then configuration is complete, so let's print the public key
-  if (atecc.configLockStatus && atecc.dataOTPLockStatus && atecc.slot0LockStatus) atecc.generatePublicKey();
+  if (atecc.configLockStatus && atecc.dataOTPLockStatus && atecc.slot0LockStatus) 
+  {
+    if(atecc.generatePublicKey() == false)
+    {
+      Serial.println("Failure to generate this device's Public Key");
+      Serial.println();
+    }
+  }
 }

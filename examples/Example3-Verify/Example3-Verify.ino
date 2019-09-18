@@ -15,7 +15,7 @@
   ***THIS EXAMPLE WILL FAIL AS IS***
   Every SparkFun Cryptographic Co-processor has a unique private/public keypair.
   You must complete Example_2_Sign. This will print out the public key, message and signature.
-  Copy/paste them into the top of this sketch, upload, and verify.
+  Copy/paste them into the top of this sketch, rename 'publicKey' to 'publicKeyExternal', upload, and verify.
 
   Try changing a byte (or single bit) in either the message or the signature, and it should fail verification.
 
@@ -34,10 +34,12 @@
 
 ATECCX08A atecc;
 
-// publicKey, message, and signature come from example 2.
+// publicKeyExternal, message, and signature come from example 2.
 // delete these, and then copy and paste your unique versions here.
+// note, you will need to change the name of the copied array 
+// "publicKey[64]" to "publicKeyExternal[64]"
 
-uint8_t publicKey[64] = {
+uint8_t publicKeyExternal[64] = {
   0x25, 0x43, 0x3E, 0xD4, 0xF9, 0xED, 0x8E, 0x8E, 0xC8, 0xAE, 0x4D, 0xE4, 0x02, 0xB2, 0x89, 0x3E,
   0x2B, 0xBD, 0xE8, 0xA3, 0x5A, 0x58, 0x9F, 0xA8, 0x65, 0x26, 0x81, 0x55, 0x17, 0x64, 0x35, 0x9E,
   0x0C, 0x0F, 0x47, 0x00, 0x38, 0xFC, 0xFD, 0xC5, 0xD4, 0xDD, 0xE9, 0x1D, 0xB2, 0xA2, 0x04, 0xB1,
@@ -78,17 +80,33 @@ void setup() {
     while (1); // stall out forever.
   }
 
+  printPublicKeyExternal(); // nice debug to ensure you have copied/pasted/renamed properly.
   printMessage(); // nice debug to see what you're verifying. see function below
   printSignature(); // nice debug to see what you're verifying. see function below
 
   // Let's verirfy!
-  if (atecc.verifySignature(message, signature, publicKey)) Serial.println("Success! Signature Verified.");
+  if (atecc.verifySignature(message, signature, publicKeyExternal)) Serial.println("Success! Signature Verified.");
   else Serial.println("Verification failure.");
 }
 
 void loop()
 {
   // do nothing.
+}
+
+void printPublicKeyExternal()
+{
+  Serial.println("uint8_t publicKeyExternal[64] = {");
+  for (int i = 0; i < sizeof(publicKeyExternal) ; i++)
+  {
+    Serial.print("0x");
+    if ((publicKeyExternal[i] >> 4) == 0) Serial.print("0"); // print preceeding high nibble if it's zero
+    Serial.print(publicKeyExternal[i], HEX);
+    if (i != 63) Serial.print(", ");
+    if ((63 - i) % 16 == 0) Serial.println();
+  }
+  Serial.println("};");
+  Serial.println();
 }
 
 void printMessage()
@@ -161,5 +179,12 @@ void printInfo()
   Serial.println();
 
   // if everything is locked up, then configuration is complete, so let's print the public key
-  if (atecc.configLockStatus && atecc.dataOTPLockStatus && atecc.slot0LockStatus) atecc.generatePublicKey();
+  if (atecc.configLockStatus && atecc.dataOTPLockStatus && atecc.slot0LockStatus) 
+  {
+    if(atecc.generatePublicKey() == false)
+    {
+      Serial.println("Failure to generate this device's Public Key");
+      Serial.println();
+    }
+  }
 }
