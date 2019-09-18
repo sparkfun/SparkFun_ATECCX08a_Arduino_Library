@@ -684,7 +684,9 @@ boolean ATECCX08A::generatePublicKey(uint8_t slot, boolean debug)
     {
       publicKey64Bytes[i] = inputBuffer[i + 1];
     }
-  
+	
+    Serial.println("This device's Public Key:");
+	Serial.println();
     Serial.println("uint8_t publicKey[64] = {");
     for (int i = 0; i < sizeof(publicKey64Bytes) ; i++)
     {
