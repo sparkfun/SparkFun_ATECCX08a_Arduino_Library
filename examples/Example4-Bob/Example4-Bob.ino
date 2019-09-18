@@ -55,13 +55,20 @@
 
 ATECCX08A atecc;
 
-uint8_t message[32] = {
-  0x00, 0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, 0x09, 0x0A, 0x0B, 0x0C, 0x0D, 0x0E, 0x0F,
-  0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F
-};
+uint8_t message[32];
+uint8_t signature[64];
 
-uint8_t signature[64]; // this is where we will store the newly created digital signature.
-// Note, it is empty now (we are not defining it), because the cryptographic device will do that for us.
+int headerCount = 0; // used to count incoming "$", when we reach 3 we know it's a good fresh new message.
+
+// Delete this "blank" public key,
+// copy/paste Alice's true unique public key from her terminal printout in Example4_Alice.
+
+uint8_t AlicesPublicKey[64] = {
+  0x80, 0x8D, 0xDD, 0xF8, 0xEA, 0xB0, 0x0F, 0xED, 0x34, 0xB3, 0x59, 0x60, 0x92, 0xE9, 0x1D, 0x55,
+  0xDF, 0x57, 0x5B, 0x7C, 0xCA, 0x10, 0xEE, 0x87, 0xA3, 0x16, 0xDC, 0xD3, 0xE8, 0x3B, 0x8D, 0x38,
+  0x8D, 0x26, 0x12, 0xB1, 0x62, 0xF3, 0x8A, 0x21, 0x59, 0xC9, 0x85, 0x9A, 0xC5, 0x68, 0x3E, 0x84,
+  0x79, 0xB1, 0x2E, 0xD0, 0x2D, 0xE3, 0xD7, 0x55, 0xDE, 0x6C, 0x56, 0xF2, 0xC8, 0x56, 0x6E, 0xB8
+};
 
 void setup() {
   Wire.begin();
@@ -87,62 +94,53 @@ void setup() {
     while (1); // stall out forever.
   }
 
-  Serial.println("Hi I'm Alice, Would you like me to send a signed message to Bob via my TX1 pin? (y/n)");
-
-  while (Serial.available() == 0); // wait for user input
-
-  if (Serial.read() == 'y')
-  {
-    Serial.println();
-    Serial.println("Okay. I'll send it now.");
-    Serial.println();
-  }
-  else Serial.print("I don't understand.");
-
-  printMessage(); // nice debug to see what you're sending. see function below
-  
-  //Let's create a digital signature!
-  atecc.createSignature(message); // by default, this uses the private key securely stored and locked in slot 0.
-
-  // Now let's send the message to Bob.
-  // this will include three things:
-  // (1) start header ("$$$") ASCII "$" = 0x24 HEX
-  // (2) message (32 bytes)
-  // (3) signature (64 bytes)
-
+  Serial.println("Hi I'm Bob, I'm listening for incoming messages from Alice on my RX1 pin.");
+  Serial.println();
   Serial1.begin(9600);
-
-  // start header
-  Serial1.print("$$$");
-
-  // message
-  // note, we use "Serial.write" because we are sending bytes of data (not characters)
-  for (int i = 0; i < sizeof(message) ; i++) Serial1.write(message[i]); 
-
-  // signature
-  // Note, in Example4_Alice we are printing the signature we JUST created,
-  // and it lives inside the library as a public array called "atecc.signature"
-  for (int i = 0; i < sizeof(atecc.signature) ; i++) Serial1.write(atecc.signature[i]);
 }
 
 void loop()
 {
-  // do nothing.
+  if (Serial1.available() > 0) // listen on Serial1
+  {
+    // check for start header
+    byte input = Serial1.read();
+    //Serial.print(input, HEX);
+    if (input == '$') headerCount++;
+    if (headerCount == 3)
+    {
+      delay(100); // wait for entire message to come into Serial1 buffer (96 bytes at 9600 baud).
+      
+      headerCount = 0; // reset
+      Serial.println("Message Received!");
+      Serial.println();
+      
+      for (int bytes = 0 ; bytes < 32 ; bytes++) message[bytes] = Serial1.read();
+      
+      for (int bytes = 0 ; bytes < 64 ; bytes++) signature[bytes] = Serial1.read();
+      
+      printMessage();
+      
+      printSignature();
+
+      // Let's verirfy!
+      if (atecc.verifySignature(message, signature, AlicesPublicKey)) Serial.println("Success! Signature Verified.");
+      else Serial.println("Verification failure.");
+    }
+  }
 }
 
 // print out this devices public key (Alice's Public Key)
 // with the array named perfectly for copy/pasting: "AlicesPublicKey"
 void printAlicesPublicKey()
 {
-  Serial.println("**Copy/paste the following public key (alice's) into the top of Example4_Bob sketch.**");
-  Serial.println("(Bob needs this to verify her signature)");
   Serial.println();
   Serial.println("uint8_t AlicesPublicKey[64] = {");
-  for (int i = 0; i < sizeof(atecc.publicKey64Bytes) ; i++)
+  for (int i = 0; i < sizeof(AlicesPublicKey) ; i++)
   {
     Serial.print("0x");
-    if ((atecc.publicKey64Bytes[i] >> 4) == 0) Serial.print("0"); // print preceeding high nibble if it's zero
-    Serial.print(atecc.publicKey64Bytes[i], HEX);
+    if ((AlicesPublicKey[i] >> 4) == 0) Serial.print("0"); // print preceeding high nibble if it's zero
+    Serial.print(AlicesPublicKey[i], HEX);
     if (i != 63) Serial.print(", ");
     if ((63 - i) % 16 == 0) Serial.println();
   }
@@ -165,16 +163,14 @@ void printMessage()
   Serial.println();
 }
 
-// Note, in Example4_Alice we are printing the signature we JUST created,
-// and it lives inside the library as a public array called "atecc.signature"
 void printSignature()
 {
   Serial.println("uint8_t signature[64] = {");
-  for (int i = 0; i < sizeof(atecc.signature) ; i++)
+  for (int i = 0; i < sizeof(signature) ; i++)
   {
     Serial.print("0x");
-    if ((atecc.signature[i] >> 4) == 0) Serial.print("0"); // print preceeding high nibble if it's zero
-    Serial.print(atecc.signature[i], HEX);
+    if ((signature[i] >> 4) == 0) Serial.print("0"); // print preceeding high nibble if it's zero
+    Serial.print(signature[i], HEX);
     if (i != 63) Serial.print(", ");
     if ((63 - i) % 16 == 0) Serial.println();
   }
