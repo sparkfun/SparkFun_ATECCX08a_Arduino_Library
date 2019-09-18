@@ -24,7 +24,7 @@
   Then upload Example4_Bob to the "Bob" Artemis board/setup.
   Type a "y" into Alice's terminal to tell her to send a signed message.
   Watch Bob's terminal, and see when he receives a message from Alice, and then verify's it!
-  
+
   Hardware Connections and initial setup:
 
   Harward connections:
@@ -60,13 +60,11 @@ uint8_t message[32] = {
   0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F
 };
 
-uint8_t signature[64]; // this is where we will store the newly created digital signature.
-// Note, it is empty now (we are not defining it), because the cryptographic device will do that for us.
-
 void setup() {
   Wire.begin();
 
-  Serial.begin(9600);
+  Serial.begin(9600);   // debug
+  Serial1.begin(9600);  // Alice's TX1 pin -->> Bob's RX1 pin
 
   if (atecc.begin() == true)
   {
@@ -100,7 +98,7 @@ void setup() {
   else Serial.print("I don't understand.");
 
   printMessage(); // nice debug to see what you're sending. see function below
-  
+
   //Let's create a digital signature!
   atecc.createSignature(message); // by default, this uses the private key securely stored and locked in slot 0.
 
@@ -110,14 +108,12 @@ void setup() {
   // (2) message (32 bytes)
   // (3) signature (64 bytes)
 
-  Serial1.begin(9600);
-
   // start header
   Serial1.print("$$$");
 
   // message
   // note, we use "Serial.write" because we are sending bytes of data (not characters)
-  for (int i = 0; i < sizeof(message) ; i++) Serial1.write(message[i]); 
+  for (int i = 0; i < sizeof(message) ; i++) Serial1.write(message[i]);
 
   // signature
   // Note, in Example4_Alice we are printing the signature we JUST created,
