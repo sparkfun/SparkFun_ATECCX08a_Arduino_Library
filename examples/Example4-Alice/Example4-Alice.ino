@@ -62,21 +62,13 @@ uint8_t message[32] = {
   0x10, 0x11, 0x12, 0x13, 0x14, 0x15, 0x16, 0x17, 0x18, 0x19, 0x1A, 0x1B, 0x1C, 0x1D, 0x1E, 0x1F
 };
 
+uint8_t signature[64]; // this is where we will store the newly created digital signature.
+// Note, it is empty now (we are not defining it), because the cryptographic device will do that for us.
+
 void setup() {
   Wire.begin();
 
   Serial.begin(9600);
-
-  Serial.println("Hi I'm Alice, Would you like me to send a signed message to Bob via my TX1 pin? (y/n)");
-
-  while (Serial.available() == 0); // wait for user input
-
-  if (Serial.read() == 'y')
-  {
-    Serial.println();
-    Serial.println("Okay. I'll send it now.");
-  }
-  else Serial.print("I don't understand.");
 
   if (atecc.begin() == true)
   {
@@ -97,6 +89,17 @@ void setup() {
     while (1); // stall out forever.
   }
 
+  Serial.println("Hi I'm Alice, Would you like me to send a signed message to Bob via my TX1 pin? (y/n)");
+
+  while (Serial.available() == 0); // wait for user input
+
+  if (Serial.read() == 'y')
+  {
+    Serial.println();
+    Serial.println("Okay. I'll send it now.");
+  }
+  else Serial.print("I don't understand.");
+
   printMessage(); // nice debug to see what you're verifying. see function below
   printSignature(); // nice debug to see what you're verifying. see function below
 
@@ -107,6 +110,26 @@ void setup() {
 void loop()
 {
   // do nothing.
+}
+
+// print out this devices public key (Alice's Public Key)
+// with the array named perfectly for copy/pasting: "AlicesPublicKey"
+void printAlicesPublicKey()
+{
+  Serial.println("**Copy/paste the following public key (alice's) into the top of Example4_Bob sketch.**");
+  Serial.println("(Bob needs this to verify her signature)");
+  Serial.println();
+  Serial.println("uint8_t AlicesPublicKey[64] = {");
+  for (int i = 0; i < sizeof(atecc.publicKey64Bytes) ; i++)
+  {
+    Serial.print("0x");
+    if ((atecc.publicKey64Bytes[i] >> 4) == 0) Serial.print("0"); // print preceeding high nibble if it's zero
+    Serial.print(atecc.publicKey64Bytes[i], HEX);
+    if (i != 63) Serial.print(", ");
+    if ((63 - i) % 16 == 0) Serial.println();
+  }
+  Serial.println("};");
+  Serial.println();
 }
 
 void printMessage()
@@ -179,5 +202,16 @@ void printInfo()
   Serial.println();
 
   // if everything is locked up, then configuration is complete, so let's print the public key
-  if (atecc.configLockStatus && atecc.dataOTPLockStatus && atecc.slot0LockStatus) atecc.generatePublicKey();
+  if (atecc.configLockStatus && atecc.dataOTPLockStatus && atecc.slot0LockStatus)
+  {
+    if (atecc.generatePublicKey(0, false) == false) // slot 0, debug false (we will print "alice's public Key manually
+    {
+      Serial.println("Failure to generate Public Key");
+      Serial.println();
+    }
+
+    // print out this devices public key (Alice's Public Key)
+    // with the array named perfectly for copy/pasting: "AlicesPublicKey"
+    printAlicesPublicKey();
+  }
 }
