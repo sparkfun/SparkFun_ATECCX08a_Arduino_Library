@@ -152,6 +152,7 @@ class ATECCX08A {
 	byte getRandomByte(boolean debug = false);
 	int getRandomInt(boolean debug = false);
 	long getRandomLong(boolean debug = false);
+	long random(long min = 0, long max = 2147483647L);
 	
 	uint8_t crc[2] = {0, 0};
 	void atca_calculate_crc(uint8_t length, uint8_t *data);	

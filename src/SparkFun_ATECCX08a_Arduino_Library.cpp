@@ -425,7 +425,28 @@ long ATECCX08A::getRandomLong(boolean debug)
   return return_val;
 }
 
+/** \brief
 
+	random(long min, long max)
+	
+    This function returns a random Long. (
+	**POSITIVE values only! It will return 0, if you try to go outside of 0 to 2147483647L.
+	User can input a min and max, or defaults to bounds of 0 to 2147483647L.
+*/
+
+long ATECCX08A::random(long min, long max)
+{
+  // check for valid input ranges
+  if( (min < 0) || (min > 2147483647L) ) return 0;
+  if( (max < 0) || (max > 2147483647L) ) return 0;
+  if(min > max) return 0;
+
+  long randomLong = getRandomLong();
+  
+  randomLong = abs(randomLong); // get the absolute value
+
+  return (min + long((max - min) * (float(randomLong) / 2147483647L))); // min + (outRange * "fraction-of-inRange")
+}
 
 /** \brief
 
