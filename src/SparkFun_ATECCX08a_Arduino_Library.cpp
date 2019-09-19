@@ -453,7 +453,7 @@ long ATECCX08A::random(long min, long max)
   long halfFSR = (max - min) / 2; // half of desired full scale range
   long midPoint = (max + min) / 2; // where we "start" out output value, then add in a fraction of halfFSR
   float fraction = float(randomLong) / 2147483647;
-  return (midPoint + (halfFSR * fraction) ); // min + (outRange * "fraction-of-inRange")
+  return (midPoint + (halfFSR * fraction) );
 }
 
 /** \brief
