@@ -427,25 +427,33 @@ long ATECCX08A::getRandomLong(boolean debug)
 
 /** \brief
 
+	random(long max)
+	
+    This function returns a positive random Long between 0 and max
+	max can be up to the larges positive value of a long: 2147483647
+*/
+
+long ATECCX08A::random(long max)
+{
+  return random(0, max);
+}
+
+/** \brief
+
 	random(long min, long max)
 	
-    This function returns a random Long. (
-	**POSITIVE values only! It will return 0, if you try to go outside of 0 to 2147483647L.
-	User can input a min and max, or defaults to bounds of 0 to 2147483647L.
+    This function returns a random Long.
+	If you flip min and max, it still works!
+	Also, it can handle negative numbers. Wahoo!
 */
 
 long ATECCX08A::random(long min, long max)
 {
-  // check for valid input ranges
-  if( (min < 0) || (min > 2147483647L) ) return 0;
-  if( (max < 0) || (max > 2147483647L) ) return 0;
-  if(min > max) return 0;
-
   long randomLong = getRandomLong();
-  
-  randomLong = abs(randomLong); // get the absolute value
-
-  return (min + long((max - min) * (float(randomLong) / 2147483647L))); // min + (outRange * "fraction-of-inRange")
+  long halfFSR = (max - min) / 2; // half of desired full scale range
+  long midPoint = (max + min) / 2; // where we "start" out output value, then add in a fraction of halfFSR
+  float fraction = float(randomLong) / 2147483647;
+  return (midPoint + (halfFSR * fraction) ); // min + (outRange * "fraction-of-inRange")
 }
 
 /** \brief

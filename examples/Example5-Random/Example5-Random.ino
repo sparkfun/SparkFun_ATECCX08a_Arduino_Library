@@ -73,7 +73,7 @@ void setup() {
 void loop()
 {
   // print a random number between 0 and 100
-  long myRandomNumber = atecc.random(0, 100);
+  long myRandomNumber = atecc.random(100);
   Serial.print("Random number: ");
   Serial.println(myRandomNumber);
 
