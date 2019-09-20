@@ -8,6 +8,10 @@
   Feel like supporting our work? Please buy a board from SparkFun!
   https://www.sparkfun.com/products/15573
 
+  ////////////////////////////// 
+  /////////////// ABOUT
+  ////////////////////////////// 
+  
   This example shows how to setup two SparkFun Artemis Boards as a sender (Alice) and a receiver (Bob).
   Alice will sign a message, then send message+signature to Bob.
   Bob will use the message, the signature, and Alice's Public Key to verify everying.
@@ -17,17 +21,10 @@
   The Serial message includes a start token ("$$$"), the message and the signature.
   Note, this requires that your device be configured with SparkFun Standard Configuration settings.
 
-  In order for Bob to verify this message+Signature, he will need Alice's publicKey.
-  Upload Example4_Alice to Alice, then watch your serial terminal at 9600.
-  Alice's publicKey will be printed to the Serial Terminal.
-  Copy this into the top of the Receivers Sketch ("Example4_Bob");
-  Then upload Example4_Bob to the "Bob" Artemis board/setup.
-  Type a "y" into Alice's terminal to tell her to send a signed message.
-  Watch Bob's terminal, and see when he receives a message from Alice, and then verify's it!
+  //////////////////////////////  
+  /////////////// HARDWARE
+  //////////////////////////////  
 
-  Hardware Connections and initial setup:
-
-  Harward connections:
   Setup two Artemis boards. Connect USB cables from computer to each.
   We will call these two boards "Alice" and "Bob", for easier understanding.
 
@@ -40,14 +37,36 @@
   Connect the following pins:
   Alice's TX1 pin -->> Bob's RX1 pin.
   Alice's GND pin -->> Bob's GND pin.
+  
+  //////////////////////////////
+  /////////////// SOFTWARE
+  //////////////////////////////  
+  
+  In order for Bob to verify this message+Signature, he will need Alice's publicKey.
+  Upload Example4_Alice to Alice, then reset Alice and watch your serial terminal at 115200.
+  Alice's publicKey will be printed to the Serial Terminal.
+  Copy this into the top of the Receivers Sketch ("Example4_Bob");
+  
+  Note, using your mouse, you can highlight the text in the serial terminal with Alice's public key,
+  But you will need to use "CTRL C" to copy to your computers clipboard.  
+  
+  Then upload Example4_Bob to the "Bob" Artemis board/setup.
+  Reset both Alice and Bob and watch their serial terminals for messages.  
+  Type a "y" into Alice's terminal to tell her to send a signed message.
+  Watch Bob's terminal, and see when he receives a message from Alice, and then verify's it!
 
+  //////////////////////////////
+  /////////////// CONFIGURATION
+  //////////////////////////////  
+  
+  Note, this requires that your device be configured with SparkFun Standard Configuration settings.
   If you haven't already, configure both devices using Example1_Configuration.
   Install artemis in boards manager: http://boardsmanager/All#Sparkfun_artemis
-  Plug in your controller board (e.g. Artemis Blackboard, Nano, ATP) into your computer with USB cable.
+  Plug in your controller board (e.g. Artemis Redboard, Nano, ATP) into your computer with USB cable.
   Connect your Cryptographic Co-processor to your controller board via a qwiic cable.
-  Select TOOLS>>BOARD>>"SparkFun Blackboard Artemis"
+  Select TOOLS>>BOARD>>"SparkFun Redboard Artemis"
   Select TOOLS>>PORT>> "COM 3" (note, Alice and Bob will each have a unique COM PORT)
-  Click upload, and follow prompts on serial monitor at 9600.
+  Click upload, and follow prompts on serial monitor at 115200.
 */
 
 #include <SparkFun_ATECCX08a_Arduino_Library.h> //Click here to get the library: http://librarymanager/All#SparkFun_ATECCX08a
@@ -73,8 +92,8 @@ uint8_t AlicesPublicKey[64] = {
 void setup() {
   Wire.begin();
 
-  Serial.begin(9600); // debug
-  Serial1.begin(9600); // Alice's TX1 pin -->> Bob's RX1 pin
+  Serial.begin(115200); // debug
+  Serial1.begin(115200); // Alice's TX1 pin -->> Bob's RX1 pin
 
   if (atecc.begin() == true)
   {

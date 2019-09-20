@@ -8,8 +8,14 @@
   Feel like supporting our work? Please buy a board from SparkFun!
   https://www.sparkfun.com/products/15573
 
+  ////////////////////////////// 
+  /////////////// ABOUT
+  ////////////////////////////// 
+  
   This example shows how to use the Random Number Generator on the Sparkfun Cryptographic Co-processor.
-  Note, this chip is a bit more capable than the built in arduino function random().
+  It will print random numbers once a second on the serial terminal at 115200.
+  
+  Note, this chip is a bit more capable than the built in Arduino function random().
 
   random(min, max);
 
@@ -30,15 +36,20 @@
   After calling "updateRandom32Bytes()", then your random 32 bytes of data are available at a public varaible
   within the library instance. If your instance was named "atecc" as in the SparkFun examples,
   this array would be "atecc.random32Bytes[]". 
-  This can be useful as an NONCE challenge or time-to-live-token to send to another device.
-
-  Hardware Connections and initial setup:
+  This can be useful as an time-to-live-token (aka NONCE) to send to another device.
+  
+  //////////////////////////////
+  /////////////// CONFIGURATION
+  //////////////////////////////  
+  
+  Note, this requires that your device be configured with SparkFun Standard Configuration settings.
+  If you haven't already, configure both devices using Example1_Configuration.
   Install artemis in boards manager: http://boardsmanager/All#Sparkfun_artemis
-  Plug in your controller board (e.g. Artemis Blackboard, Nano, ATP) into your computer with USB cable.
+  Plug in your controller board (e.g. Artemis Redboard, Nano, ATP) into your computer with USB cable.
   Connect your Cryptographic Co-processor to your controller board via a qwiic cable.
-  Select TOOLS>>BOARD>>"SparkFun Blackboard Artemis"
-  Select TOOLS>>PORT>> "COM 3" (note, yours may be different)
-  Click upload, and watch serial monitor at 9600.
+  Select TOOLS>>BOARD>>"SparkFun Redboard Artemis"
+  Select TOOLS>>PORT>> "COM 3" (note, Alice and Bob will each have a unique COM PORT)
+  Click upload, and follow prompts on serial monitor at 115200.
 
 */
 
@@ -49,7 +60,7 @@ ATECCX08A atecc;
 
 void setup() {
   Wire.begin();
-  Serial.begin(9600);
+  Serial.begin(115200);
   if (atecc.begin() == true)
   {
     Serial.println("Successful wakeUp(). I2C connections are good.");

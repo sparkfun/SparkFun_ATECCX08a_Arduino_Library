@@ -8,10 +8,14 @@
   Feel like supporting our work? Please buy a board from SparkFun!
   https://www.sparkfun.com/products/15573
 
+  ////////////////////////////// 
+  /////////////// ABOUT
+  ////////////////////////////// 
+
   This example shows how to setup a "challenge and response" for authentication between two systems.
   
   It uses two SparkFun Artemis Boards. One as an authentication key (Alice) and one as a controller (Bob).
-  For any new authentication cycle, Alice will initiate. User must reset Artemis and send a "y" over serial at 115200.
+  For any new authentication cycle, Alice will initiate. User must reset Alice and send a "y" over serial at 115200.
   Bob will create a new random array of 32 bytes (this will be called a token - aka NONCE).
   It is also known as a "time-to-live token", because it will become invalid after a set amount of time.
   Bob sends the token to Alice.
@@ -22,25 +26,11 @@
   This prevents any attacker from intercepting the message, and hanging on to it for later use.
   So if Alice doesn't respond within the set window of time (150ms), then Bob will clear out the token,
   and Alice must ask for another.
-
-  User types in a "y" into Alice's terminal. She sends the request NONCE message to Bob ("$$$").
-  Alice will hear the token from Bob
-  Alice will send her signature via Serial1 TX pin.
-  Bob will listen for Alice's response (her signature) on his Serial1 RX pin. (for only 150ms)
   
-  Note, this requires that your device be configured with SparkFun Standard Configuration settings.
+  //////////////////////////////  
+  /////////////// HARDWARE
+  //////////////////////////////  
 
-  In order for Bob to verify the token+Signature, he will need Alice's publicKey.
-  Upload Example6_Alice to Alice, then watch your serial terminal at 115200.
-  Alice's publicKey will be printed to the Serial Terminal.
-  Copy this into the top of Bob's sketch (Example6_Challenge_Bob.ino);
-  Then upload Example6_Challenge_Bob to the "Bob" Artemis board/setup.
-  Watch and Alice's terminal at 115200 to see everything happen.
-  Ultimately, Bob will Verify the signature and turn on LED 13.
-
-  Hardware Connections and initial setup:
-
-  Harward connections:
   Setup two Artemis boards. Connect USB cables from computer to each.
   We will call these two boards "Alice" and "Bob", for easier understanding.
 
@@ -55,11 +45,34 @@
   Alice's RX1 pin -->> Bob's TX1 pin.
   Alice's GND pin -->> Bob's GND pin.
 
+  //////////////////////////////
+  /////////////// SOFTWARE
+  //////////////////////////////  
+
+  In order for Bob to verify the token+Signature, he will need Alice's publicKey.
+  We need to paste Alice's public key into the top of Bob's sketch.
+  First, upload Example6_Alice to Alice, then watch your serial terminal at 115200.
+  Alice's publicKey will be printed to the Serial Terminal.
+  Copy this into the top of Bob's sketch (Example6_Challenge_Bob.ino).
+  
+  Note, using your mouse, you can highlight the text in the serial terminal with Alice's public key,
+  But you will need to use "CTRL C" to copy to your computers clipboard.
+  
+  Then upload Example6_Challenge_Bob to the "Bob" Artemis board/setup.
+  Reset both Alice and Bob and watch their serial terminals for messages.
+  To engage a new authentication cycle, type a "y" into Alice's terminal.
+  Ultimately, Bob will attempt to Verify the signature and print results to the terminal.
+
+  //////////////////////////////
+  /////////////// CONFIGURATION
+  //////////////////////////////  
+  
+  Note, this requires that your device be configured with SparkFun Standard Configuration settings.
   If you haven't already, configure both devices using Example1_Configuration.
   Install artemis in boards manager: http://boardsmanager/All#Sparkfun_artemis
-  Plug in your controller board (e.g. Artemis Blackboard, Nano, ATP) into your computer with USB cable.
+  Plug in your controller board (e.g. Artemis Redboard, Nano, ATP) into your computer with USB cable.
   Connect your Cryptographic Co-processor to your controller board via a qwiic cable.
-  Select TOOLS>>BOARD>>"SparkFun Blackboard Artemis"
+  Select TOOLS>>BOARD>>"SparkFun Redboard Artemis"
   Select TOOLS>>PORT>> "COM 3" (note, Alice and Bob will each have a unique COM PORT)
   Click upload, and follow prompts on serial monitor at 115200.
 */

@@ -14,11 +14,11 @@
 
   Hardware Connections and initial setup:
   Install artemis in boards manager: http://boardsmanager/All#Sparkfun_artemis
-  Plug in your controller board (e.g. Artemis Blackboard, Nano, ATP) into your computer with USB cable.
+  Plug in your controller board (e.g. Artemis Redboard, Nano, ATP) into your computer with USB cable.
   Connect your Cryptographic Co-processor to your controller board via a qwiic cable.
-  Select TOOLS>>BOARD>>"SparkFun Blackboard Artemis"
+  Select TOOLS>>BOARD>>"SparkFun Redboard Artemis"
   Select TOOLS>>PORT>> "COM 3" (note, yours may be different)
-  Click upload, and follow configuration prompt on serial monitor at 9600.
+  Click upload, and follow configuration prompt on serial monitor at 115200.
 
 */
 
@@ -35,7 +35,7 @@ uint8_t message[32] = {
 
 void setup() {
   Wire.begin();
-  Serial.begin(9600);
+  Serial.begin(115200);
   if (atecc.begin() == true)
   {
     Serial.println("Successful wakeUp(). I2C connections are good.");
