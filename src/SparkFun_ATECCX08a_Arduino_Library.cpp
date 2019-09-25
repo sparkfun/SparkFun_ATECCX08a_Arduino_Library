@@ -498,7 +498,7 @@ boolean ATECCX08A::receiveResponseData(uint8_t length, boolean debug)
 	  length--; // keep this while loop active until we've pulled in everything
 	  countGlobal++; // keep track of the count of the entire message.
 	}  
-	if(requestAttempts == 256) break; // this probably means that the device is not responding.
+	if(requestAttempts == 20) break; // this probably means that the device is not responding.
   }
 
   if(debug)
