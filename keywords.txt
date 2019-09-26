@@ -24,6 +24,12 @@ idleMode						KEYWORD2
 lockConfig						KEYWORD2
 lockDataAndOTP						KEYWORD2
 readConfigZone						KEYWORD2
+writeConfigSparkFun						KEYWORD2
+createNewKeyPair						KEYWORD2
+lockDataSlot0						KEYWORD2
+generatePublicKey						KEYWORD2
+createSignature						KEYWORD2
+verifySignature						KEYWORD2
 
 
 #######################################
