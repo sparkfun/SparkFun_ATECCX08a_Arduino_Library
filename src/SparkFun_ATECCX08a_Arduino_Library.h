@@ -81,8 +81,8 @@
 #define SIGN_MODE_TEMPKEY			0b10000000 // The message to be signed is in TempKey. datasheet pg 85
 #define VERIFY_MODE_EXTERNAL		0b00000010 // Use an external public key for verification, pass to command as data post param2, ds pg 89
 #define VERIFY_MODE_STORED			0b00000000 // Use an internally stored public key for verification, param2 = keyID, ds pg 89
-#define VERIFY_PARAM2_KEYTYPE_ECC 	0b00000100 // When verify mode external, param2 should be KeyType, ds pg 89
-#define VERIFY_PARAM2_KEYTYPE_NONECC 	0b00000111 // When verify mode external, param2 should be KeyType, ds pg 89
+#define VERIFY_PARAM2_KEYTYPE_ECC 	0x0004 // When verify mode external, param2 should be KeyType, ds pg 89
+#define VERIFY_PARAM2_KEYTYPE_NONECC 	0x0007 // When verify mode external, param2 should be KeyType, ds pg 89
 
 #define ZONE_CONFIG 0x00
 #define ZONE_OTP 0x01
@@ -171,6 +171,7 @@ class ATECCX08A {
 	boolean write(byte zone, byte address, byte length, const byte data[]);
 
 	boolean readConfigZone(boolean debug = true);
+	boolean sendCommand(uint8_t command_opcode, uint8_t param1, uint16_t param2, uint8_t *data = NULL, size_t length_of_data = 0);
 	
   private:
 

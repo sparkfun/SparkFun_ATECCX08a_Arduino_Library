@@ -1009,45 +1009,12 @@ boolean ATECCX08A::verifySignature(uint8_t *message, uint8_t *signature, uint8_t
     Serial.println("Load TempKey Failure");
     return false;
   }
-  
-  uint8_t complete_message_length;
-  complete_message_length = (8 + 64 + 64); // command(8), signature (64), external public key (64)
 
-  uint8_t complete_message[complete_message_length];
-  complete_message[0] = WORD_ADDRESS_VALUE_COMMAND; // word address value (type command)
-  complete_message[1] = complete_message_length-1; 	// count
-  complete_message[2] = COMMAND_OPCODE_VERIFY; 		// command
-  complete_message[3] = VERIFY_MODE_EXTERNAL;		// param1
-  complete_message[4] = VERIFY_PARAM2_KEYTYPE_ECC;	// param2a
-  complete_message[5] = 0x00;						// param2b
-  memcpy(&complete_message[6], &signature[0], 64);	// append signature
-  memcpy(&complete_message[70], &publicKey[0], 64);	// append external public key
+  uint8_t data_sigAndPub[128]; // we can only send one data array to sendCommand, so we need to combint signature and public key.
+  memcpy(&data_sigAndPub[0], &signature[0], 64);	// append signature
+  memcpy(&data_sigAndPub[64], &publicKey[0], 64);	// append external public key
   
-  // update CRCs
-  uint8_t packet_to_CRC[complete_message_length-3]; // minus word address and two crcs.
-  // append data
-  memcpy(&packet_to_CRC[0], &complete_message[1], (complete_message_length-3));
-  
-  //    Serial.println("packet_to_CRC: ");
-  //  for (int i = 0; i < sizeof(packet_to_CRC) ; i++)
-  //  {
-  //  Serial.print(packet_to_CRC[i], HEX);
-  //  Serial.print(",");
-  //  }
-  //  Serial.println();
-  
-  atca_calculate_crc((complete_message_length-3), packet_to_CRC); // count includes crc[0] and crc[1], so we must subtract 2 before creating crc
-  //Serial.println(crc[0], HEX);
-  //Serial.println(crc[1], HEX);
-
-  // append crcs
-  memcpy(&complete_message[complete_message_length-2], &crc[0], 2);  
-
-  wakeUp();
-  
-  _i2cPort->beginTransmission(_i2caddr);
-  _i2cPort->write(complete_message, complete_message_length); 
-  _i2cPort->endTransmission();
+  sendCommand(COMMAND_OPCODE_VERIFY, VERIFY_MODE_EXTERNAL, VERIFY_PARAM2_KEYTYPE_ECC, data_sigAndPub, sizeof(data_sigAndPub));
 
   delay(58); // time for IC to process command and exectute
 
@@ -1082,7 +1049,49 @@ boolean ATECCX08A::writeConfigSparkFun()
   return (result1 && result2);
 }
 
+boolean ATECCX08A::sendCommand(uint8_t command_opcode, uint8_t param1, uint16_t param2, uint8_t *data, size_t length_of_data)
+{
+  // build packet array (total_transmission) to send a communication to IC, with opcode COMMAND
+  // It expects to see: word address, count, command opcode, param1, param2, data (optional), CRC[0], CRC[1]
+  
+  uint8_t total_transmission_length;
+  total_transmission_length = (1 +1 +1 +1 +2 +length_of_data +2); 
+  // word address val (1) + count (1) + command opcode (1) param1 (1) + param2 (2) data (0-?) + crc (2)
 
+  uint8_t total_transmission[total_transmission_length];
+  total_transmission[0] = WORD_ADDRESS_VALUE_COMMAND; 		// word address value (type command)
+  total_transmission[1] = total_transmission_length-1; 		// count, does not include itself, so "-1"
+  total_transmission[2] = command_opcode; 			// command
+  total_transmission[3] = param1;							// param1
+  memcpy(&total_transmission[4], &param2, sizeof(param2));	// append param2 
+  memcpy(&total_transmission[6], &data[0], length_of_data);	// append data
+  
+  // update CRCs
+  uint8_t packet_to_CRC[total_transmission_length-3]; // minus word address (1) and crc (2).
+  memcpy(&packet_to_CRC[0], &total_transmission[1], (total_transmission_length-3)); // copy over just what we need to CRC starting at index 1
+  
+  //  Serial.println("packet_to_CRC: ");
+  //  for (int i = 0; i < sizeof(packet_to_CRC) ; i++)
+  //  {
+  //  Serial.print(packet_to_CRC[i], HEX);
+  //  Serial.print(",");
+  //  }
+  //  Serial.println();
+  
+  atca_calculate_crc((total_transmission_length-3), packet_to_CRC); // count includes crc[0] and crc[1], so we must subtract 2 before creating crc
+  //Serial.println(crc[0], HEX);
+  //Serial.println(crc[1], HEX);
+
+  memcpy(&total_transmission[total_transmission_length-2], &crc[0], 2);  // append crcs
+
+  wakeUp();
+  
+  _i2cPort->beginTransmission(_i2caddr);
+  _i2cPort->write(total_transmission, total_transmission_length); 
+  _i2cPort->endTransmission();
+  
+  return true;
+}
 
 
 
