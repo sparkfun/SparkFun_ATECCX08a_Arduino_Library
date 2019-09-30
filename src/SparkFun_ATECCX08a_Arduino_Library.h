@@ -29,17 +29,7 @@
 #include "WProgram.h"
 #endif
 
-#if defined(__MK64FX512__) || defined(__MK66FX1M0__)
-//Teensy
-#include "i2c_t3.h"
-
-#else
 #include "Wire.h"
-
-//The catch-all default is 32
-#define I2C_BUFFER_LENGTH 32
-
-#endif
 
 #define ATECC508A_ADDRESS_DEFAULT 0x60 //7-bit unshifted default I2C Address
 // 0x60 on a fresh chip. note, this is software definable
@@ -96,12 +86,7 @@
 class ATECCX08A {
   public:
     //By default use Wire, standard I2C speed, and the default ADS1015 address
-	#if defined(__MK64FX512__) || defined(__MK66FX1M0__)
-	//Teensy
-	boolean begin(uint8_t i2caddr = ATECC508A_ADDRESS_DEFAULT, i2c_t3 &wirePort = Wire);
-	#else
 	boolean begin(uint8_t i2caddr = ATECC508A_ADDRESS_DEFAULT, TwoWire &wirePort = Wire);
-	#endif
 	
 	byte inputBuffer[128]; // used to store messages received from the IC as they come in
 	byte configZone[128]; // used to store configuration zone bytes read from device EEPROM
@@ -158,21 +143,10 @@ class ATECCX08A {
 	
   private:
 
-	#if defined(__MK64FX512__) || defined(__MK66FX1M0__)
-	//Teensy
-	i2c_t3 *_i2cPort;
-	
-	#else
-	
 	TwoWire *_i2cPort;
-	
-	#endif
 
 	uint8_t _i2caddr;
 	
-    boolean _printDebug = false; //Flag to print the serial commands we are sending to the Serial port for debug
-
-    Stream *_debugSerial; //The stream to send debug messages to if enabled
 };
 
 
