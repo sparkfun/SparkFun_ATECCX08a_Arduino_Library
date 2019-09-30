@@ -162,9 +162,9 @@ class ATECCX08A {
 	boolean createNewKeyPair(uint8_t slot = 0);
 	boolean generatePublicKey(uint8_t slot = 0, boolean debug = true);
 	
-	boolean createSignature(uint8_t *data, uint8_t slot = 0); 
+	boolean createSignature(uint8_t *data, uint16_t slot = 0x0000); 
 	boolean loadTempKey(uint8_t *data);  // load 32 bytes of data into tempKey (a temporary memory spot in the IC)
-	boolean signTempKey(uint8_t slot = 0); // create signature using contents of TempKey and PRIVATE KEY in slot
+	boolean signTempKey(uint16_t slot = 0x0000); // create signature using contents of TempKey and PRIVATE KEY in slot
 	boolean verifySignature(uint8_t *message, uint8_t *signature, uint8_t *publicKey); // external ECC publicKey only
 
 	boolean read(byte zone, byte address, byte length = 4, boolean debug = false);

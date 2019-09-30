@@ -866,7 +866,7 @@ boolean ATECCX08A::write(byte zone, byte address, byte length, const byte data[]
 
 
 
-boolean ATECCX08A::createSignature(uint8_t *data, uint8_t slot)
+boolean ATECCX08A::createSignature(uint8_t *data, uint16_t slot)
 {
   boolean loadTempKeyResult = loadTempKey(data);
   boolean signTempKeyResult = signTempKey(slot);
@@ -881,7 +881,7 @@ boolean ATECCX08A::loadTempKey(uint8_t *data)
   // but we will protect again this because our server is going to send us it's own unique NONCE,
   // when it requests data, and we will add this into our message.
   
-  sendCommand(COMMAND_OPCODE_NONCE, NONCE_MODE_PASSTHROUGH, 0x0000, data, sizeof(data));
+  sendCommand(COMMAND_OPCODE_NONCE, NONCE_MODE_PASSTHROUGH, 0x0000, data, 32);
   
   // note, param2 is 0x0000 (and param1 is PASSTHROUGH), so OutData will be just a single byte of zero upon completion.
   // see ds pg 77 for more info
@@ -901,28 +901,9 @@ boolean ATECCX08A::loadTempKey(uint8_t *data)
   else return false;
 }
 
-boolean ATECCX08A::signTempKey(uint8_t slot)
+boolean ATECCX08A::signTempKey(uint16_t slot)
 {
-  uint8_t count = 0x07;
-  uint8_t command = COMMAND_OPCODE_SIGN;
-  uint8_t param1 = SIGN_MODE_TEMPKEY;
-  uint8_t param2a = 0x00;
-  uint8_t param2b = slot; // default is 0
-
-  // update CRCs
-  uint8_t packet_to_CRC[] = {count, command, param1, param2a, param2b};
-  atca_calculate_crc((count - 2), packet_to_CRC); // count includes crc[0] and crc[1], so we must subtract 2 before creating crc
-  //Serial.println(crc[0], HEX);
-  //Serial.println(crc[1], HEX);
-
-  // create complete message using newly created/updated crc values
-  byte complete_message[9] = {WORD_ADDRESS_VALUE_COMMAND, count, command, param1, param2a, param2b, crc[0], crc[1]};
-
-  wakeUp();
-  
-  _i2cPort->beginTransmission(_i2caddr);
-  _i2cPort->write(complete_message, 8);
-  _i2cPort->endTransmission();
+  sendCommand(COMMAND_OPCODE_SIGN, SIGN_MODE_TEMPKEY, slot);
 
   delay(50); // time for IC to process command and exectute
 
@@ -967,7 +948,8 @@ boolean ATECCX08A::verifySignature(uint8_t *message, uint8_t *signature, uint8_t
     return false;
   }
 
-  uint8_t data_sigAndPub[128]; // we can only send one data array to sendCommand, so we need to combint signature and public key.
+  // We can only send one *single* data array to sendCommand as Param2, so we need to combine signature and public key.
+  uint8_t data_sigAndPub[128]; 
   memcpy(&data_sigAndPub[0], &signature[0], 64);	// append signature
   memcpy(&data_sigAndPub[64], &publicKey[0], 64);	// append external public key
   
