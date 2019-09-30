@@ -880,54 +880,11 @@ boolean ATECCX08A::loadTempKey(uint8_t *data)
   // Note, the datasheet warns that this does not provide protection agains replay attacks,
   // but we will protect again this because our server is going to send us it's own unique NONCE,
   // when it requests data, and we will add this into our message.
-  uint8_t count = 0x27; // 7 for standard command + 32 bytes of mesage = 39 (or 0x27)
-  uint8_t command = COMMAND_OPCODE_NONCE;
-  uint8_t param1 = NONCE_MODE_PASSTHROUGH;
-  uint8_t param2a = 0x00;
-  uint8_t param2b = 0x00;
-
-  uint8_t complete_message_length = (8 + 32);
-  uint8_t complete_message[complete_message_length];
-  complete_message[0] = WORD_ADDRESS_VALUE_COMMAND; // word address value (type command)
-  complete_message[1] = complete_message_length-1; 						// count
-  complete_message[2] = COMMAND_OPCODE_NONCE; 		// command
-  complete_message[3] = NONCE_MODE_PASSTHROUGH;		// param1
-  complete_message[4] = 0x00;						// param2a
-  complete_message[5] = 0x00;						// param2b
-  memcpy(&complete_message[6], &data[0], 32);	// data
   
-  // update CRCs
-  uint8_t packet_to_CRC[5+32];
-  // append data
-  memcpy(&packet_to_CRC[0], &complete_message[1], (5+32));
+  sendCommand(COMMAND_OPCODE_NONCE, NONCE_MODE_PASSTHROUGH, 0x0000, data, sizeof(data));
   
-  //    Serial.println("packet_to_CRC: ");
-  //  for (int i = 0; i < sizeof(packet_to_CRC) ; i++)
-  //  {
-  //  Serial.print(packet_to_CRC[i], HEX);
-  //  Serial.print(",");
-  //  }
-  //  Serial.println();
-  
-  atca_calculate_crc((5+32), packet_to_CRC); // count includes crc[0] and crc[1], so we must subtract 2 before creating crc
-  //Serial.println(crc[0], HEX);
-  //Serial.println(crc[1], HEX);
-
-  // append crcs
-  memcpy(&complete_message[6+32], &crc[0], 2);  
-
-  wakeUp();
-  
-  //Serial.print("complete_message_length: ");
-  //Serial.println(complete_message_length);
-  
-  // begin I2C sending - 
-  
-  _i2cPort->beginTransmission(_i2caddr);
-  _i2cPort->write(complete_message, complete_message_length); 
-  _i2cPort->endTransmission();
-
-  // end I2C sending - 
+  // note, param2 is 0x0000 (and param1 is PASSTHROUGH), so OutData will be just a single byte of zero upon completion.
+  // see ds pg 77 for more info
 
   delay(7); // time for IC to process command and exectute
 
