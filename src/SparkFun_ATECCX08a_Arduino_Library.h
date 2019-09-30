@@ -69,13 +69,13 @@
 // 		_ _ ? ?  ? ? _ _ 	Bits 5-2 Slot number (in this example, we use slot 0, so "0 0 0 0")
 // 		_ _ _ _  _ _ ? ? 	Bits 1-0 Zone or locktype. 00=Config, 01=Data/OTP, 10=Single Slot in Data, 11=illegal
 
-#define LOCK_MODE_ZONE_CONFIG 				0b10000000
-#define LOCK_MODE_ZONE_DATA_AND_OTP 		0b10000001
-#define LOCK_MODE_SLOT0						0b10000010
+#define LOCK_MODE_ZONE_CONFIG 			0b10000000
+#define LOCK_MODE_ZONE_DATA_AND_OTP 	0b10000001
+#define LOCK_MODE_SLOT0					0b10000010
 
 // GenKey command PARAM1 zone options (aka Mode). more info at table on datasheet page 71
 #define GENKEY_MODE_PUBLIC 			0b00000000
-#define GENKEY_MODE_NEW_PRIVATE 		0b00000100
+#define GENKEY_MODE_NEW_PRIVATE 	0b00000100
 
 #define NONCE_MODE_PASSTHROUGH		0b00000011 // Operate in pass-through mode and Write TempKey with NumIn. datasheet pg 79
 #define SIGN_MODE_TEMPKEY			0b10000000 // The message to be signed is in TempKey. datasheet pg 85
@@ -88,27 +88,10 @@
 #define ZONE_OTP 0x01
 #define ZONE_DATA 0x02
 
-#define ADDRESS_CONFIG_BLOCK_0 0b00000000 // param2 (byte 0), address block bits: _ _ _ 0  0 _ _ _ 
-#define ADDRESS_CONFIG_BLOCK_1 0b00001000 // param2 (byte 0), address block bits: _ _ _ 0  1 _ _ _ 
-#define ADDRESS_CONFIG_BLOCK_2 0b00010000 // param2 (byte 0), address block bits: _ _ _ 1  0 _ _ _ 
-#define ADDRESS_CONFIG_BLOCK_3 0b00011000 // param2 (byte 0), address block bits: _ _ _ 1  1 _ _ _ 
-
-#define ADDRESS_DATA_SLOT9 0b01001000 // param2 (byte 0), slot 9, zero offset
-
-// Address Encoding for Data Zone (Param2) Table 9-6. ds pg 58 
-// Byte 1, (slots 9-15)
-// 0 0 0 0  0 0 _ _ 	Bits 7-2 UNUSED
-// _ _ _ _  _ _ 0 0 	Bits 1-0 Block number (in this example, we use block 0, so "0 0")
-
-// Byte 0, (slots 9-15)
-// 0 _ _ _  _ _ _ _ 	Bit 7 UNUSED
-// _ 1 0 0  1 _ _ _ 	Bits 6-3 Slot Number (in this example, we use slot 9, so "1 0 0 1"
-// _ _ _ _  _ 0 0 0 	Bits 2-0 Word Offset (in this example, we don't want any offset, so "0 0 0"
-
-
-
-
-#define ADDRESS_DATA_SLOT1 0b0000 0000 // 
+#define ADDRESS_CONFIG_READ_BLOCK_0 0x0000 // 00000000 00000000 // param2 (byte 0), address block bits: _ _ _ 0  0 _ _ _ 
+#define ADDRESS_CONFIG_READ_BLOCK_1 0x0008 // 00000000 00001000 // param2 (byte 0), address block bits: _ _ _ 0  1 _ _ _ 
+#define ADDRESS_CONFIG_READ_BLOCK_2 0x0010 // 00000000 00010000 // param2 (byte 0), address block bits: _ _ _ 1  0 _ _ _ 
+#define ADDRESS_CONFIG_READ_BLOCK_3 0x0018 // 00000000 00011000 // param2 (byte 0), address block bits: _ _ _ 1  1 _ _ _ 
 
 class ATECCX08A {
   public:
@@ -144,7 +127,7 @@ class ATECCX08A {
 	boolean lockConfig(); // note, this PERMINANTLY disables changes to config zone - including changing the I2C address!
 	boolean lockDataAndOTP();
 	boolean lockDataSlot0();
-	boolean lock(byte zone);
+	boolean lock(uint8_t zone);
 	
 	// Random array and fuctions
 	byte random32Bytes[32]; // used to store the complete data return (32 bytes) when we ask for a random number from chip.
@@ -159,16 +142,16 @@ class ATECCX08A {
 	void atca_calculate_crc(uint8_t length, uint8_t *data);	
 	
 	// Key functions
-	boolean createNewKeyPair(uint8_t slot = 0);
-	boolean generatePublicKey(uint8_t slot = 0, boolean debug = true);
+	boolean createNewKeyPair(uint16_t slot = 0x0000);
+	boolean generatePublicKey(uint16_t slot = 0x0000, boolean debug = true);
 	
 	boolean createSignature(uint8_t *data, uint16_t slot = 0x0000); 
 	boolean loadTempKey(uint8_t *data);  // load 32 bytes of data into tempKey (a temporary memory spot in the IC)
 	boolean signTempKey(uint16_t slot = 0x0000); // create signature using contents of TempKey and PRIVATE KEY in slot
 	boolean verifySignature(uint8_t *message, uint8_t *signature, uint8_t *publicKey); // external ECC publicKey only
 
-	boolean read(byte zone, byte address, byte length = 4, boolean debug = false);
-	boolean write(byte zone, byte address, byte length, const byte data[]);
+	boolean read(uint8_t zone, uint16_t address, uint8_t length, boolean debug = false);
+	boolean write(uint8_t zone, uint16_t address, uint8_t *data, uint8_t length_of_data);
 
 	boolean readConfigZone(boolean debug = true);
 	boolean sendCommand(uint8_t command_opcode, uint8_t param1, uint16_t param2, uint8_t *data = NULL, size_t length_of_data = 0);
