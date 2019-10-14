@@ -23,20 +23,18 @@
 
 #include "SparkFun_ATECCX08A_Arduino_Library.h"
 
-//Returns false if IC does not respond
+/** \brief 
 
-#if defined(__MK64FX512__) || defined(__MK66FX1M0__)
-	//Teensy 3.6
-boolean ATECCX08A::begin(uint8_t i2caddr, i2c_t3 &wirePort)
-{
-  //Bring in the user's choices
-  _i2cPort = &wirePort; //Grab which port the user wants us to use
-
-  _i2caddr = i2caddr;
-
-  return ( wakeUp() ); // see if the IC wakes up properly, return responce.
-}
-#else
+	begin(uint8_t i2caddr, TwoWire &wirePort)
+	
+	returns false if IC does not respond,
+	returns true if wake() function is successful
+	
+	Note, in most SparkFun Arduino Libraries, begin would call a different
+	function called isConnected() to check status on the bus, but because 
+	this IC will ACK and respond with a status, we are gonna use wakeUp() 
+	for the same purpose.
+*/
 
 boolean ATECCX08A::begin(uint8_t i2caddr, TwoWire &wirePort)
 {
@@ -47,8 +45,6 @@ boolean ATECCX08A::begin(uint8_t i2caddr, TwoWire &wirePort)
 
   return ( wakeUp() ); // see if the IC wakes up properly, return responce.
 }
-#endif
-
 
 /** \brief 
 
