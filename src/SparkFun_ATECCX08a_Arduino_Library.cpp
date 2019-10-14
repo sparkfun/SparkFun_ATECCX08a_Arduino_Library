@@ -3,14 +3,14 @@
 
   Written by Pete Lewis @ SparkFun Electronics, August 5th, 2019
 
-  The IC uses I2C and 1-wire to communicat. This library only supports I2C.
+  The IC uses I2C or 1-wire to communicate. This library only supports I2C.
 
   https://github.com/sparkfun/SparkFun_ATECCX08A_Arduino_Library
 
   Do you like this library? Help support SparkFun. Buy a board!
 
   Development environment specifics:
-  Arduino IDE 1.8.1
+  Arduino IDE 1.8.10
 
   This program is distributed in the hope that it will be useful,
   but WITHOUT ANY WARRANTY; without even the implied warranty of
@@ -149,6 +149,9 @@ boolean ATECCX08A::lockConfig()
 	
 	This function reads the entire configuration zone EEPROM memory on the device.
 	It stores them for vewieing in a large array called configZone[128].
+	In addition to configuration settings, the configuration memory on the IC also
+	contains the serial number, revision number, lock statuses, and much more.
+	This function also updates global variables for these other things.
 */
 
 boolean ATECCX08A::readConfigZone(boolean debug)
@@ -235,7 +238,7 @@ boolean ATECCX08A::lockDataSlot0()
 
 	lock(byte zone)
 	
-	This function sends the LOCK Command using hte argument zone as parameter 1, 
+	This function sends the LOCK Command using the argument zone as parameter 1, 
 	and listens for success response (0x00).
 */
 
@@ -378,7 +381,7 @@ long ATECCX08A::random(long max)
 
 	random(long min, long max)
 	
-    This function returns a random Long.
+    This function returns a random Long with set boundaries of min and max.
 	If you flip min and max, it still works!
 	Also, it can handle negative numbers. Wahoo!
 */
@@ -396,7 +399,7 @@ long ATECCX08A::random(long min, long max)
 
 	receiveResponseData(uint8_t length, boolean debug)
 	
-	This function receives messages from the ATECCX08a IC (up to 32 Bytes)
+	This function receives messages from the ATECCX08a IC (up to 128 Bytes)
 	It will return true if it receives the correct amount of data and good CRCs.
 	What we hear back from the IC is always formatted with the following series of bytes:
 	COUNT, DATA, CRC[0], CRC[1]
@@ -422,7 +425,7 @@ boolean ATECCX08A::receiveResponseData(uint8_t length, boolean debug)
   
   while(length)
   {
-    byte requestAmount; // amount of bytes to request, needed to pull in data 32 bytes at a time (for AVR atmega328s)  
+    byte requestAmount; // amount of bytes to request, needed to pull in data 32 bytes at a time
 	if(length > 32) requestAmount = 32; // as we have more than 32 to pull in, keep pulling in 32 byte chunks
 	else requestAmount = length; // now we're ready to pull in the last chunk.
 	_i2cPort->requestFrom(_i2caddr, requestAmount);    // request bytes from slave
@@ -455,8 +458,8 @@ boolean ATECCX08A::receiveResponseData(uint8_t length, boolean debug)
 	checkCount(boolean debug)
 	
 	This function checks that the count byte received in the most recent message equals countGlobal
-	Use it after you call receiveResponseData as many times as you need,
-	and then finally you can check the count of the complete message.
+	Call receiveResponseData, and then imeeditately call this to check the count of the complete message.
+	Returns true if inputBuffer[0] == countGlobal.
 */
 
 boolean ATECCX08A::checkCount(boolean debug)
@@ -482,8 +485,7 @@ boolean ATECCX08A::checkCount(boolean debug)
 	checkCrc(boolean debug)
 	
 	This function checks that the CRC bytes received in the most recent message equals a calculated CRCs
-	Use it after you call receiveResponseData as many times as you need,
-	and then finally you can check the CRCs of the complete message.
+	Call receiveResponseData, then call immediately call this to check the CRCs of the complete message.
 */
 
 boolean ATECCX08A::checkCrc(boolean debug)
@@ -547,7 +549,7 @@ void ATECCX08A::atca_calculate_crc(uint8_t length, uint8_t *data)
 
 	cleanInputBuffer()
 	
-    This function sets the entire inputBuffer to zeros.
+    This function sets the entire inputBuffer to 0xFFs.
 	It is helpful for debugging message/count/CRCs errors.
 */
 
@@ -558,6 +560,15 @@ void ATECCX08A::cleanInputBuffer()
     inputBuffer[i] = 0xFF;
   }
 }
+
+/** \brief
+
+	createNewKeyPair(uint16_t slot)
+	
+    This function sends the command to create a new key pair (private AND public)
+	in the slot designated by argument slot (default slot 0).
+	Sparkfun Default Configuration Sketch calls this, and then locks the data/otp zones and slot 0.
+*/
 
 boolean ATECCX08A::createNewKeyPair(uint16_t slot)
 {  
@@ -585,6 +596,21 @@ boolean ATECCX08A::createNewKeyPair(uint16_t slot)
   }
   else return false;
 }
+
+/** \brief
+
+	generatePublicKey(uint16_t slot, boolean debug)
+
+    This function uses the GENKEY command in "Public Key Computation" mode.
+	
+    Generates an ECC public key based upon the private key stored in the slot defined by the KeyID
+	parameter (aka slot). Defaults to slot 0. 
+	
+	Note, if you haven't created a private key in the slot already, then this will fail.
+	
+	The generated public key is read back from the device, and then copied from inputBuffer to 
+	a global variable named publicKey64Bytes for later use.
+*/
 
 boolean ATECCX08A::generatePublicKey(uint16_t slot, boolean debug)
 {
@@ -628,6 +654,17 @@ boolean ATECCX08A::generatePublicKey(uint16_t slot, boolean debug)
   }
   else return false;
 }
+
+/** \brief
+
+	read(uint8_t zone, uint16_t address, uint8_t length, boolean debug)
+
+    Reads data from the IC at a specific zone and address.
+	Your data response will be available at inputBuffer[].
+	
+	For more info on address encoding, see datasheet pg 58.
+*/
+
 boolean ATECCX08A::read(uint8_t zone, uint16_t address, uint8_t length, boolean debug)
 {
   // adjust zone as needed for whether it's 4 or 32 bytes length read
@@ -661,13 +698,21 @@ boolean ATECCX08A::read(uint8_t zone, uint16_t address, uint8_t length, boolean 
   return true;
 }
 
+/** \brief
+
+	write(uint8_t zone, uint16_t address, uint8_t *data, uint8_t length_of_data)
+
+    Writes data to a specific zone and address on the IC.
+	
+	For more info on zone and address encoding, see datasheet pg 58.
+*/
+
 boolean ATECCX08A::write(uint8_t zone, uint16_t address, uint8_t *data, uint8_t length_of_data)
 {
-
-  // adjust zone as needed for whether it's 4 or 32 bytes length read
+  // adjust zone as needed for whether it's 4 or 32 bytes length write
   // bit 7 of param1 needs to be set correctly 
-  // (0 = 4 Bytes are read) 
-  // (1 = 32 Bytes are read)
+  // (0 = 4 Bytes are written) 
+  // (1 = 32 Bytes are written)
   if(length_of_data == 32) 
   {
 	zone |= 0b10000000; // set bit 7
@@ -695,6 +740,19 @@ boolean ATECCX08A::write(uint8_t zone, uint16_t address, uint8_t *data, uint8_t 
   else return false;
 }
 
+/** \brief
+
+	createSignature(uint8_t *data, uint16_t slot)
+
+    Creates a 64-byte ECC signature on 32 bytes of data.
+	Defautes to use private key located in slot 0.
+	Your signature will be available at global variable signature[].
+	
+	Note, the IC actually needs you to store your data in a temporary memory location
+	called TempKey. This function first loads TempKey, and then signs TempKey. Then it 
+	receives the signature and copies it to signature[].
+*/
+
 boolean ATECCX08A::createSignature(uint8_t *data, uint16_t slot)
 {
   boolean loadTempKeyResult = loadTempKey(data);
@@ -703,13 +761,22 @@ boolean ATECCX08A::createSignature(uint8_t *data, uint16_t slot)
   else return false;
 }
 
+/** \brief
+
+	loadTempKey(uint8_t *data)
+
+	Writes 32 bytes of data to memory location "TempKey" on the IC.
+	Note, the data is provided externally by you, the user, and is included in the
+	command NONCE.
+
+    We will use the NONCE command in passthrough mode to load tempKey with our data (aka message).
+    Note, the datasheet warns that this does not provide protection agains replay attacks,
+    but we will protect again this because our server (Bob) is going to send us it's own unique random TOKEN,
+    when it requests data, and this will allow us to create a unique data + signature for every communication.
+*/
+
 boolean ATECCX08A::loadTempKey(uint8_t *data)
 {
-  // We will use the NONCE command in passthrough mode to load tempKey with our message.
-  // Note, the datasheet warns that this does not provide protection agains replay attacks,
-  // but we will protect again this because our server is going to send us it's own unique NONCE,
-  // when it requests data, and we will add this into our message.
-  
   sendCommand(COMMAND_OPCODE_NONCE, NONCE_MODE_PASSTHROUGH, 0x0000, data, 32);
   
   // note, param2 is 0x0000 (and param1 is PASSTHROUGH), so OutData will be just a single byte of zero upon completion.
@@ -729,6 +796,16 @@ boolean ATECCX08A::loadTempKey(uint8_t *data)
   if(inputBuffer[1] == 0x00) return true;   // If we hear a "0x00", that means it had a successful nonce
   else return false;
 }
+
+/** \brief
+
+	signTempKey(uint16_t slot)
+
+	Create a 64 byte ECC signature for the contents of TempKey using the private key in Slot.
+	Default slot is 0.
+	
+	The response from this command (the signature) is stored in global varaible signature[].
+*/
 
 boolean ATECCX08A::signTempKey(uint16_t slot)
 {
@@ -767,6 +844,17 @@ boolean ATECCX08A::signTempKey(uint16_t slot)
   }
   else return false;
 }
+
+/** \brief
+
+	verifySignature(uint8_t *message, uint8_t *signature, uint8_t *publicKey)
+	
+	Verifies a ECC signature using the message, signature and external public key.
+	Returns true if successful.
+	
+	Note, it acutally uses loadTempKey, then uses the verify command in "external public key" mode.
+*/
+
 boolean ATECCX08A::verifySignature(uint8_t *message, uint8_t *signature, uint8_t *publicKey)
 {
   // first, let's load the message into TempKey on the device, this uses NONCE command in passthrough mode.
@@ -799,6 +887,16 @@ boolean ATECCX08A::verifySignature(uint8_t *message, uint8_t *signature, uint8_t
   else return false;
 }
 
+/** \brief
+
+	writeConfigSparkFun()
+	
+	Writes the necessary configuration settings to the IC in order to work with the SparkFun Arduino Library examples.
+	For key slots 0 and 1, this enables ECC private key pairs,public key generation, and external signature verifications.
+	
+	Returns true if write commands were successful.
+*/
+
 boolean ATECCX08A::writeConfigSparkFun()
 {
   // keep track of our write command results.
@@ -816,6 +914,21 @@ boolean ATECCX08A::writeConfigSparkFun()
   
   return (result1 && result2);
 }
+
+/** \brief
+
+	sendCommand(uint8_t command_opcode, uint8_t param1, uint16_t param2, uint8_t *data, size_t length_of_data)
+	
+	Generic function for sending commands to the IC. 
+	
+	This function handles creating the "total transmission" to the IC.
+	This contains WORD_ADDRESS_VALUE, COUNT, OPCODE, PARAM1, PARAM2, DATA (optional), and CRCs.
+	
+	Note, it always calls the "wake()" function, assuming that you have let the IC fall asleep (default 1.7 sec)
+	
+	Note, for anything other than a command (reset, sleep and idle), you need a different "Word Address Value",
+	So those specific transmissions are handled in unique functions.
+*/
 
 boolean ATECCX08A::sendCommand(uint8_t command_opcode, uint8_t param1, uint16_t param2, uint8_t *data, size_t length_of_data)
 {
