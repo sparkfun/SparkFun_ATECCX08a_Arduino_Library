@@ -5,7 +5,17 @@ SparkFun ATECCX08A Arduino Library
 
 ##PIC URL
 
+The SparkFun Cryptographic Co-processor Breakout ATECC508A (Qwiic) takes all the great features of the Microchip ATECC508A cryptographic authentication device and adds two Qwiic ports for plug and play functionality. The ATECC508A chip is capable of many cryptographic processes, including, but not limited to:
 
+* An asymmetric key/signature solution based upon Elliptic Curve Cryptography.
+* A standard hash-based challenge-response protocol using a SHA-256 algorithm.
+* A FIPS random number generator. 
+
+Embedded in the chip is a 10 Kb EEPROM array that can be used for storing keys, certificates, data, consumption logging, and security configurations. Access to the sections of memory can then be restricted and the configuration locked to prevent changes.
+
+Each ATECC508A ships with a guaranteed unique 72-bit serial number and includes several security features to prevent physical attacks on the device itself, or logical attacks on the data transmitted between the device.
+
+**&#x1F512; Note:** Please follow through the hookup guide in its entirety before using this board. The chip can be only configured before it is **PERMANENTLY** locked. It is advisable that novice users purchase multiple boards in order to explore the multiple functions of the ATECC508A.
 
 Repository Contents
 -------------------
