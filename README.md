@@ -27,7 +27,7 @@ Repository Contents
 Documentation
 --------------
 
-* **[SparkFun Cryptographic Breakout Hookup Guide](https://learn.sparkfun.com/tutorials/sparkfun-cryptographic-co-processor-breakout-atecc508a-qwiic-hookup-guide)** - Basic hookup guide for the SparkFun Cryptographic Co-Processor Breakout.
+* **[SparkFun Cryptographic Breakout Hookup Guide](https://learn.sparkfun.com/tutorials/cryptographic-co-processor-atecc508a-qwiic-hookup-guide)** - Basic hookup guide for the SparkFun Cryptographic Co-Processor Breakout.
 * **[Installing an Arduino Library Guide](https://learn.sparkfun.com/tutorials/installing-an-arduino-library)** - Basic information on how to install an Arduino library.
 * **[SparkFun Cryptographic Co-Processor Breakout - ATECC508A Product Repository](https://github.com/sparkfun/SparkFun_Cryptographic_Co-Processor_Breakout_ATECC508A_Qwiic)** - Main repository (including hardware files)
 
