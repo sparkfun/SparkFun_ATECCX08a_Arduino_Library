@@ -21,7 +21,7 @@
   along with this program.  If not, see <http://www.gnu.org/licenses/>.
 */
 
-#include "SparkFun_ATECCX08A_Arduino_Library.h"
+#include "SparkFun_ATECCX08a_Arduino_Library.h"
 
 /** \brief 
 
