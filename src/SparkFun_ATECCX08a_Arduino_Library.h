@@ -29,6 +29,7 @@
 #include "WProgram.h"
 #endif
 
+
 #include "Wire.h"
 
 #define ATECC508A_ADDRESS_DEFAULT 0x60 //7-bit unshifted default I2C Address
@@ -85,8 +86,13 @@
 
 class ATECCX08A {
   public:
+  
     //By default use Wire, standard I2C speed, and the default ADS1015 address
-	boolean begin(uint8_t i2caddr = ATECC508A_ADDRESS_DEFAULT, TwoWire &wirePort = Wire);
+	#if defined(ARDUINO_ARCH_APOLLO3) // checking which board we are using and selecting a Serial debug that will work.
+	boolean begin(uint8_t i2caddr = ATECC508A_ADDRESS_DEFAULT, TwoWire &wirePort = Wire, Stream &serialPort = Serial); // Artemis
+	#else
+	boolean begin(uint8_t i2caddr = ATECC508A_ADDRESS_DEFAULT, TwoWire &wirePort = Wire, Stream &serialPort = SerialUSB);  // SamD21 boards
+	#endif
 	
 	byte inputBuffer[128]; // used to store messages received from the IC as they come in
 	byte configZone[128]; // used to store configuration zone bytes read from device EEPROM
@@ -146,6 +152,8 @@ class ATECCX08A {
 	TwoWire *_i2cPort;
 
 	uint8_t _i2caddr;
+	
+	Stream *_debugSerial; //The generic connection to user's chosen serial hardware
 	
 };
 

@@ -25,7 +25,7 @@
 
 /** \brief 
 
-	begin(uint8_t i2caddr, TwoWire &wirePort)
+	begin(uint8_t i2caddr, TwoWire &wirePort, Stream &serialPort)
 	
 	returns false if IC does not respond,
 	returns true if wake() function is successful
@@ -36,10 +36,12 @@
 	for the same purpose.
 */
 
-boolean ATECCX08A::begin(uint8_t i2caddr, TwoWire &wirePort)
+boolean ATECCX08A::begin(uint8_t i2caddr, TwoWire &wirePort, Stream &serialPort)
 {
   //Bring in the user's choices
   _i2cPort = &wirePort; //Grab which port the user wants us to use
+  
+  _debugSerial = &serialPort; //Grab which port the user wants us to use
 
   _i2caddr = i2caddr;
 
@@ -186,18 +188,18 @@ boolean ATECCX08A::readConfigZone(boolean debug)
   
   if(debug)
   {
-    Serial.println("configZone: ");
+    _debugSerial->println("configZone: ");
     for (int i = 0; i < sizeof(configZone) ; i++)
     {
-      Serial.print(i);
-	  Serial.print(": 0x");
-	  if((configZone[i] >> 4) == 0) Serial.print("0"); // print preceeding high nibble if it's zero
-	  Serial.print(configZone[i], HEX); 
-	  Serial.print(" \t0b");
-	  for(int bit = 7; bit >= 0; bit--) Serial.print(bitRead(configZone[i],bit)); // print binary WITH preceding '0' bits
-	  Serial.println();
+      _debugSerial->print(i);
+	  _debugSerial->print(": 0x");
+	  if((configZone[i] >> 4) == 0) _debugSerial->print("0"); // print preceeding high nibble if it's zero
+	  _debugSerial->print(configZone[i], HEX); 
+	  _debugSerial->print(" \t0b");
+	  for(int bit = 7; bit >= 0; bit--) _debugSerial->print(bitRead(configZone[i],bit)); // print binary WITH preceding '0' bits
+	  _debugSerial->println();
     }
-    Serial.println();
+    _debugSerial->println();
   }
   
   
@@ -292,13 +294,13 @@ boolean ATECCX08A::updateRandom32Bytes(boolean debug)
 
   if(debug)
   {
-    Serial.print("random32Bytes: ");
+    _debugSerial->print("random32Bytes: ");
     for (int i = 0; i < sizeof(random32Bytes) ; i++)
     {
-      Serial.print(random32Bytes[i], HEX);
-      Serial.print(",");
+      _debugSerial->print(random32Bytes[i], HEX);
+      _debugSerial->print(",");
     }
-    Serial.println();
+    _debugSerial->println();
   }
   
   return true;
@@ -438,13 +440,13 @@ boolean ATECCX08A::receiveResponseData(uint8_t length, boolean debug)
 
   if(debug)
   {
-    Serial.print("inputBuffer: ");
+    _debugSerial->print("inputBuffer: ");
 	for (int i = 0; i < countGlobal ; i++)
 	{
-	  Serial.print(inputBuffer[i], HEX);
-	  Serial.print(",");
+	  _debugSerial->print(inputBuffer[i], HEX);
+	  _debugSerial->print(",");
 	}
-	Serial.println();	  
+	_debugSerial->println();	  
   }
   return true;
 }
@@ -462,15 +464,15 @@ boolean ATECCX08A::checkCount(boolean debug)
 {
   if(debug)
   {
-    Serial.print("countGlobal: 0x");
-	Serial.println(countGlobal, HEX);
-	Serial.print("count heard from IC (inpuBuffer[0]): 0x");
-    Serial.println(inputBuffer[0], HEX);
+    _debugSerial->print("countGlobal: 0x");
+	_debugSerial->println(countGlobal, HEX);
+	_debugSerial->print("count heard from IC (inpuBuffer[0]): 0x");
+    _debugSerial->println(inputBuffer[0], HEX);
   }
   // Check count; the first byte sent from IC is count, and it should be equal to the actual message count
   if(inputBuffer[0] != countGlobal) 
   {
-	if(debug) Serial.println("Message Count Error");
+	if(debug) _debugSerial->println("Message Count Error");
 	return false;
   }  
   return true;
@@ -492,15 +494,15 @@ boolean ATECCX08A::checkCrc(boolean debug)
   
   if(debug)
   {
-    Serial.print("CRC[0] Calc: 0x");
-	Serial.println(crc[0], HEX);
-	Serial.print("CRC[1] Calc: 0x");
-    Serial.println(crc[1], HEX);
+    _debugSerial->print("CRC[0] Calc: 0x");
+	_debugSerial->println(crc[0], HEX);
+	_debugSerial->print("CRC[1] Calc: 0x");
+    _debugSerial->println(crc[1], HEX);
   }
   
   if( (inputBuffer[countGlobal-1] != crc[1]) || (inputBuffer[countGlobal-2] != crc[0]) )   // then check the CRCs.
   {
-	if(debug) Serial.println("Message CRC Error");
+	if(debug) _debugSerial->println("Message CRC Error");
 	return false;
   }
   
@@ -632,19 +634,19 @@ boolean ATECCX08A::generatePublicKey(uint16_t slot, boolean debug)
 	
 	if(debug)
 	{
-		Serial.println("This device's Public Key:");
-		Serial.println();
-		Serial.println("uint8_t publicKey[64] = {");
+		_debugSerial->println("This device's Public Key:");
+		_debugSerial->println();
+		_debugSerial->println("uint8_t publicKey[64] = {");
 		for (int i = 0; i < sizeof(publicKey64Bytes) ; i++)
 		{
-		  Serial.print("0x");
-		  if((publicKey64Bytes[i] >> 4) == 0) Serial.print("0"); // print preceeding high nibble if it's zero
-		  Serial.print(publicKey64Bytes[i], HEX);
-		  if(i != 63) Serial.print(", ");
-		  if((63-i) % 16 == 0) Serial.println();
+		  _debugSerial->print("0x");
+		  if((publicKey64Bytes[i] >> 4) == 0) _debugSerial->print("0"); // print preceeding high nibble if it's zero
+		  _debugSerial->print(publicKey64Bytes[i], HEX);
+		  if(i != 63) _debugSerial->print(", ");
+		  if((63-i) % 16 == 0) _debugSerial->println();
 		}
-		Serial.println("};");
-		Serial.println();
+		_debugSerial->println("};");
+		_debugSerial->println();
 	}
 	return true;
   }
@@ -825,17 +827,17 @@ boolean ATECCX08A::signTempKey(uint16_t slot)
       signature[i] = inputBuffer[i + 1];
     }
   
-	Serial.println();
-    Serial.println("uint8_t signature[64] = {");
+	_debugSerial->println();
+    _debugSerial->println("uint8_t signature[64] = {");
     for (int i = 0; i < sizeof(signature) ; i++)
     {
-	  Serial.print("0x");
-	  if((signature[i] >> 4) == 0) Serial.print("0"); // print preceeding high nibble if it's zero
-      Serial.print(signature[i], HEX);
-      if(i != 63) Serial.print(", ");
-	  if((63-i) % 16 == 0) Serial.println();
+	  _debugSerial->print("0x");
+	  if((signature[i] >> 4) == 0) _debugSerial->print("0"); // print preceeding high nibble if it's zero
+      _debugSerial->print(signature[i], HEX);
+      if(i != 63) _debugSerial->print(", ");
+	  if((63-i) % 16 == 0) _debugSerial->println();
     }
-	Serial.println("};");
+	_debugSerial->println("};");
 	return true;
   }
   else return false;
@@ -857,7 +859,7 @@ boolean ATECCX08A::verifySignature(uint8_t *message, uint8_t *signature, uint8_t
   boolean loadTempKeyResult = loadTempKey(message);
   if(loadTempKeyResult == false) 
   {
-    Serial.println("Load TempKey Failure");
+    _debugSerial->println("Load TempKey Failure");
     return false;
   }
 
@@ -947,17 +949,17 @@ boolean ATECCX08A::sendCommand(uint8_t command_opcode, uint8_t param1, uint16_t 
   uint8_t packet_to_CRC[total_transmission_length-3]; // minus word address (1) and crc (2).
   memcpy(&packet_to_CRC[0], &total_transmission[1], (total_transmission_length-3)); // copy over just what we need to CRC starting at index 1
   
-  //  Serial.println("packet_to_CRC: ");
+  //  _debugSerial->println("packet_to_CRC: ");
   //  for (int i = 0; i < sizeof(packet_to_CRC) ; i++)
   //  {
-  //  Serial.print(packet_to_CRC[i], HEX);
-  //  Serial.print(",");
+  //  _debugSerial->print(packet_to_CRC[i], HEX);
+  //  _debugSerial->print(",");
   //  }
-  //  Serial.println();
+  //  _debugSerial->println();
   
   atca_calculate_crc((total_transmission_length-3), packet_to_CRC); // count includes crc[0] and crc[1], so we must subtract 2 before creating crc
-  //Serial.println(crc[0], HEX);
-  //Serial.println(crc[1], HEX);
+  //_debugSerial->println(crc[0], HEX);
+  //_debugSerial->println(crc[1], HEX);
 
   memcpy(&total_transmission[total_transmission_length-2], &crc[0], 2);  // append crcs
 
