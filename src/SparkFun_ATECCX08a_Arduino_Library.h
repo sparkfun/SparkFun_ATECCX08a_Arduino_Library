@@ -31,13 +31,23 @@
 
 #include "Wire.h"
 
-// Cryptographic defines
-#define PUBLIC_KEY_SIZE    64
-#define SIGNATURE_SIZE     64
-#define CRC_SIZE           2
-#define BUFFER_SIZE        128
-#define CONFIG_ZONE_SIZE   128
-#define SERIAL_NUMBER_SIZE 10
+/* Protocol + Cryptographic defines */
+#define RESPONSE_COUNT_SIZE  1
+#define RESPONSE_SIGNAL_SIZE 1
+#define RESPONSE_INFO_SIZE   4
+#define RESPONSE_RANDOM_SIZE 32
+#define CRC_SIZE             2
+#define CONFIG_ZONE_SIZE     128
+#define SERIAL_NUMBER_SIZE   10
+
+#define PUBLIC_KEY_SIZE      64
+#define SIGNATURE_SIZE       64
+#define BUFFER_SIZE          128
+
+/* Response signals always come after the first count byte */
+#define RESPONSE_COUNT_INDEX 0
+#define RESPONSE_SIGNAL_INDEX RESPONSE_COUNT_SIZE
+#define RESPONSE_GETINFO_SIGNAL_INDEX (RESPONSE_COUNT_SIZE + 2)
 
 /* Protocol Indices */
 #define ATRCC508A_PROTOCOL_FIELD_COMMAND 0
@@ -55,11 +65,31 @@
 #define ATRCC508A_PROTOCOL_FIELD_SIZE_PARAM2  2
 #define ATRCC508A_PROTOCOL_FIELD_SIZE_CRC     CRC_SIZE
 
-// word address val (1) + count (1) + command opcode (1) param1 (1) + param2 (2) data (0-?) + crc (2)
+/* Protocol overhead at sendCommand(): word address val (1) + count (1) + command opcode (1) param1 (1) + param2 (2) data (0-?) + crc (2) */
 #define ATRCC508A_PROTOCOL_OVERHEAD (ATRCC508A_PROTOCOL_FIELD_SIZE_COMMAND + ATRCC508A_PROTOCOL_FIELD_SIZE_LENGTH + ATRCC508A_PROTOCOL_FIELD_SIZE_OPCODE + ATRCC508A_PROTOCOL_FIELD_SIZE_PARAM1 + ATRCC508A_PROTOCOL_FIELD_SIZE_PARAM2 + ATRCC508A_PROTOCOL_FIELD_SIZE_CRC)
 
+/* Protocol codes */
+#define ATRCC508A_SUCCESSFUL_TEMPKEY 0x00
+#define ATRCC508A_SUCCESSFUL_VERIFY  0x00
+#define ATRCC508A_SUCCESSFUL_WRITE   0x00
+#define ATRCC508A_SUCCESSFUL_LOCK    0x00
+#define ATRCC508A_SUCCESSFUL_WAKEUP  0x11
+#define ATRCC508A_SUCCESSFUL_GETINFO 0x50 /* Revision number */
+
+/* Receive constants */
 #define ATRCC508A_MAX_REQUEST_SIZE 32
 #define ATRCC508A_MAX_RETRIES 20
+
+/* configZone EEPROM mapping */
+#define CONFIG_ZONE_READ_SIZE    32
+
+#define CONFIG_ZONE_SERIAL_PART0    0
+#define CONFIG_ZONE_SERIAL_PART1    8
+#define CONFIG_ZONE_REVISION_NUMBER 4
+#define CONFIG_ZONE_OTP_LOCK     86
+#define CONFIG_ZONE_LOCK_STATUS  87
+#define CONFIG_ZONE_SLOTS_LOCK   88
+
 
 #define ATECC508A_ADDRESS_DEFAULT 0x60 //7-bit unshifted default I2C Address
 // 0x60 on a fresh chip. note, this is software definable

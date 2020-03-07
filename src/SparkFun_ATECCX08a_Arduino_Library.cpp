@@ -67,6 +67,8 @@ boolean ATECCX08A::begin(uint8_t i2caddr, TwoWire &wirePort, Stream &serialPort)
 
 boolean ATECCX08A::wakeUp()
 {
+  boolean err = false;
+
   _i2cPort->beginTransmission(0x00); // set up to write to address "0x00",
   // This creates a "wake condition" where SDA is held low for at least tWLO
   // tWLO means "wake low duration" and must be at least 60 uSeconds (which is acheived by writing 0x00 at 100KHz I2C)
@@ -77,11 +79,20 @@ boolean ATECCX08A::wakeUp()
 
   // Now let's read back from the IC and see if it reports back good things.
   countGlobal = 0;
-  if(receiveResponseData(4) == false) return false;
-  if(checkCount() == false) return false;
-  if(checkCrc() == false) return false;
-  if(inputBuffer[1] == 0x11) return true;   // If we hear a "0x11", that means it had a successful wake up.
-  else return false;
+
+  if (!receiveResponseData(RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE))
+    goto error;
+
+  if (!checkCount() || !checkCrc())
+    goto error;
+
+  // If we hear a "0x11", that means it had a successful wake up.
+  if (inputBuffer[RESPONSE_SIGNAL_INDEX] != ATRCC508A_SUCCESSFUL_WAKEUP)
+    goto error;
+
+  err = true;
+error:
+  return err;
 }
 
 /** \brief
@@ -114,18 +125,31 @@ void ATECCX08A::idleMode()
 
 boolean ATECCX08A::getInfo()
 {
-  sendCommand(COMMAND_OPCODE_INFO, 0x00, 0x0000); // param1 - 0x00 (revision mode).
+  boolean err = false;
+  if (!sendCommand(COMMAND_OPCODE_INFO, 0x00, 0x0000)) // param1 - 0x00 (revision mode).
+  {
+    goto error;
+  }
 
   delay(1); // time for IC to process command and exectute
 
     // Now let's read back from the IC and see if it reports back good things.
   countGlobal = 0;
-  if(receiveResponseData(7, true) == false) return false;
+  if (receiveResponseData(RESPONSE_COUNT_SIZE + RESPONSE_INFO_SIZE + CRC_SIZE, true) == false)
+    goto error;
+
   idleMode();
-  if(checkCount() == false) return false;
-  if(checkCrc() == false) return false;
-  if(inputBuffer[3] == 0x50) return true;   // If we hear a "0x50", that means it had a successful version response.
-  else return false;
+
+  if (!checkCount()|| !checkCrc())
+    goto error;
+
+  // If we hear a "0x50", that means it had a successful version response.
+  if (inputBuffer[RESPONSE_GETINFO_SIGNAL_INDEX] != ATRCC508A_SUCCESSFUL_GETINFO)
+    goto error;
+
+  err = true;
+error:
+  return err;
 }
 
 /** \brief
@@ -155,45 +179,45 @@ boolean ATECCX08A::lockConfig()
 boolean ATECCX08A::readConfigZone(boolean debug)
 {
   // read block 0, the first 32 bytes of config zone into inputBuffer
-  read(ZONE_CONFIG, ADDRESS_CONFIG_READ_BLOCK_0, 32);
+  read(ZONE_CONFIG, ADDRESS_CONFIG_READ_BLOCK_0, CONFIG_ZONE_READ_SIZE);
 
   // copy current contents of inputBuffer into configZone[] (for later viewing/comparing)
-  memcpy(&configZone[0], &inputBuffer[1], 32);
+  memcpy(&configZone[CONFIG_ZONE_READ_SIZE * 0], &inputBuffer[1], CONFIG_ZONE_READ_SIZE);
 
-  read(ZONE_CONFIG, ADDRESS_CONFIG_READ_BLOCK_1, 32); 	// read block 1
-  memcpy(&configZone[32], &inputBuffer[1], 32); 	// copy block 1
+  read(ZONE_CONFIG, ADDRESS_CONFIG_READ_BLOCK_1, CONFIG_ZONE_READ_SIZE); 	// read block 1
+  memcpy(&configZone[CONFIG_ZONE_READ_SIZE * 1], &inputBuffer[1], CONFIG_ZONE_READ_SIZE); 	// copy block 1
 
-  read(ZONE_CONFIG, ADDRESS_CONFIG_READ_BLOCK_2, 32); 	// read block 2
-  memcpy(&configZone[64], &inputBuffer[1], 32); 	// copy block 2
+  read(ZONE_CONFIG, ADDRESS_CONFIG_READ_BLOCK_2, CONFIG_ZONE_READ_SIZE); 	// read block 2
+  memcpy(&configZone[CONFIG_ZONE_READ_SIZE * 2], &inputBuffer[1], CONFIG_ZONE_READ_SIZE); 	// copy block 2
 
-  read(ZONE_CONFIG, ADDRESS_CONFIG_READ_BLOCK_3, 32); 	// read block 3
-  memcpy(&configZone[96], &inputBuffer[1], 32); 	// copy block 3
+  read(ZONE_CONFIG, ADDRESS_CONFIG_READ_BLOCK_3, CONFIG_ZONE_READ_SIZE); 	// read block 3
+  memcpy(&configZone[CONFIG_ZONE_READ_SIZE * 3], &inputBuffer[1], CONFIG_ZONE_READ_SIZE); 	// copy block 3
 
   // pull out serial number from configZone, and copy to public variable within this instance
-  memcpy(&serialNumber[0], &configZone[0], 4); 	// copy SN<0:3>
-  memcpy(&serialNumber[4], &configZone[8], 5); 	// copy SN<4:8>
+  memcpy(&serialNumber[0], &configZone[CONFIG_ZONE_SERIAL_PART0], 4); 	// copy SN<0:3>
+  memcpy(&serialNumber[4], &configZone[CONFIG_ZONE_SERIAL_PART1], 5); 	// copy SN<4:8>
 
   // pull out revision number from configZone, and copy to public variable within this instance
-  memcpy(&revisionNumber[0], &configZone[4], 4); 	// copy RevNum<0:3>
+  memcpy(&revisionNumber[0], &configZone[CONFIG_ZONE_REVISION_NUMBER], 4); 	// copy RevNum<0:3>
 
   // set lock statuses for config, data/otp, and slot 0
-  if(configZone[87] == 0x00) configLockStatus = true;
+  if (configZone[CONFIG_ZONE_LOCK_STATUS] == 0x00) configLockStatus = true;
   else configLockStatus = false;
 
-  if(configZone[86] == 0x00) dataOTPLockStatus = true;
+  if (configZone[CONFIG_ZONE_OTP_LOCK] == 0x00) dataOTPLockStatus = true;
   else dataOTPLockStatus = false;
 
-  if( (configZone[88] & (1<<0) ) == true) slot0LockStatus = false; // LSB is slot 0. if bit set = UN-locked.
+  if ( (configZone[CONFIG_ZONE_SLOTS_LOCK] & (1 << 0) ) == true) slot0LockStatus = false; // LSB is slot 0. if bit set = UN-locked.
   else slot0LockStatus = true;
 
-  if(debug)
+  if (debug)
   {
     _debugSerial->println("configZone: ");
     for (int i = 0; i < sizeof(configZone) ; i++)
     {
       _debugSerial->print(i);
 	  _debugSerial->print(": 0x");
-	  if((configZone[i] >> 4) == 0) _debugSerial->print("0"); // print preceeding high nibble if it's zero
+	  if ((configZone[i] >> 4) == 0) _debugSerial->print("0"); // print preceeding high nibble if it's zero
 	  _debugSerial->print(configZone[i], HEX);
 	  _debugSerial->print(" \t0b");
 	  for(int bit = 7; bit >= 0; bit--) _debugSerial->print(bitRead(configZone[i],bit)); // print binary WITH preceding '0' bits
@@ -201,7 +225,6 @@ boolean ATECCX08A::readConfigZone(boolean debug)
     }
     _debugSerial->println();
   }
-
 
   return true;
 }
@@ -242,18 +265,31 @@ boolean ATECCX08A::lockDataSlot0()
 
 boolean ATECCX08A::lock(uint8_t zone)
 {
-  sendCommand(COMMAND_OPCODE_LOCK, zone, 0x0000);
+  boolean err = false;
+
+  if (!sendCommand(COMMAND_OPCODE_LOCK, zone, 0x0000))
+    goto error;
 
   delay(32); // time for IC to process command and exectute
 
   // Now let's read back from the IC and see if it reports back good things.
   countGlobal = 0;
-  if(receiveResponseData(4) == false) return false;
+
+  if (!receiveResponseData(RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE))
+    goto error;
+
   idleMode();
-  if(checkCount() == false) return false;
-  if(checkCrc() == false) return false;
-  if(inputBuffer[1] == 0x00) return true;   // If we hear a "0x00", that means it had a successful lock
-  else return false;
+
+  if (!checkCount() || !checkCrc())
+    goto error;
+
+  // If we hear a "0x00", that means it had a successful lock
+  if (inputBuffer[RESPONSE_SIGNAL_INDEX] != ATRCC508A_SUCCESSFUL_LOCK)
+    goto error;
+
+  err = true;
+error:
+  return err;
 }
 
 /** \brief
@@ -271,7 +307,11 @@ boolean ATECCX08A::lock(uint8_t zone)
 
 boolean ATECCX08A::updateRandom32Bytes(boolean debug)
 {
-  sendCommand(COMMAND_OPCODE_RANDOM, 0x00, 0x0000);
+  boolean err = false;
+
+  if (!sendCommand(COMMAND_OPCODE_RANDOM, 0x00, 0x0000))
+    goto error;
+
   // param1 = 0. - Automatically update EEPROM seed only if necessary prior to random number generation. Recommended for highest security.
   // param2 = 0x0000. - must be 0x0000.
 
@@ -279,20 +319,22 @@ boolean ATECCX08A::updateRandom32Bytes(boolean debug)
 
   // Now let's read back from the IC. This will be 35 bytes of data (count + 32_data_bytes + crc[0] + crc[1])
 
-  if(receiveResponseData(35, debug) == false) return false;
-  idleMode();
-  if(checkCount(debug) == false) return false;
-  if(checkCrc(debug) == false) return false;
+  if (receiveResponseData(RESPONSE_COUNT_SIZE + RESPONSE_RANDOM_SIZE + CRC_SIZE, debug) == false)
+    goto error;
 
+  idleMode();
+
+  if (!checkCount(debug) || !checkCrc(debug))
+    goto error;
 
   // update random32Bytes[] array
   // we don't need the count value (which is currently the first byte of the inputBuffer)
-  for (int i = 0 ; i < 32 ; i++) // for loop through to grab all but the first position (which is "count" of the message)
+  for (int i = 0 ; i < RESPONSE_RANDOM_SIZE ; i++) // for loop through to grab all but the first position (which is "count" of the message)
   {
-    random32Bytes[i] = inputBuffer[i + 1];
+    random32Bytes[i] = inputBuffer[RESPONSE_COUNT_SIZE + i];
   }
 
-  if(debug)
+  if (debug)
   {
     _debugSerial->print("random32Bytes: ");
     for (int i = 0; i < sizeof(random32Bytes) ; i++)
@@ -303,7 +345,9 @@ boolean ATECCX08A::updateRandom32Bytes(boolean debug)
     _debugSerial->println();
   }
 
-  return true;
+  err = true;
+error:
+  return err;
 }
 
 /** \brief
@@ -428,7 +472,7 @@ boolean ATECCX08A::receiveResponseData(uint8_t length, boolean debug)
   while(length)
   {
     byte requestAmount; // amount of bytes to request, needed to pull in data 32 bytes at a time
-    if(length > ATRCC508A_MAX_REQUEST_SIZE)
+    if (length > ATRCC508A_MAX_REQUEST_SIZE)
     {
       requestAmount = ATRCC508A_MAX_REQUEST_SIZE; // as we have more than 32 to pull in, keep pulling in 32 byte chunks
     }
@@ -447,15 +491,16 @@ boolean ATECCX08A::receiveResponseData(uint8_t length, boolean debug)
       /* Make sure not to read beyond buffer size */
       if (countGlobal < sizeof(inputBuffer))
         inputBuffer[countGlobal] = value;    // receive a byte as character
+
       length--; // keep this while loop active until we've pulled in everything
       countGlobal++; // keep track of the count of the entire message.
     }
 
-    if(requestAttempts == ATRCC508A_MAX_RETRIES)
+    if (requestAttempts == ATRCC508A_MAX_RETRIES)
       break; // this probably means that the device is not responding.
   }
 
-  if(debug)
+  if (debug)
   {
     _debugSerial->print("inputBuffer: ");
     for (int i = 0; i < countGlobal ; i++)
@@ -480,20 +525,25 @@ boolean ATECCX08A::receiveResponseData(uint8_t length, boolean debug)
 
 boolean ATECCX08A::checkCount(boolean debug)
 {
-  if(debug)
+  boolean err = false;
+  if (debug)
   {
     _debugSerial->print("countGlobal: 0x");
 	_debugSerial->println(countGlobal, HEX);
 	_debugSerial->print("count heard from IC (inpuBuffer[0]): 0x");
     _debugSerial->println(inputBuffer[0], HEX);
   }
+
   // Check count; the first byte sent from IC is count, and it should be equal to the actual message count
-  if(inputBuffer[0] != countGlobal)
+  if (inputBuffer[RESPONSE_COUNT_INDEX] != countGlobal)
   {
-	if(debug) _debugSerial->println("Message Count Error");
-	return false;
+	if (debug) _debugSerial->println("Message Count Error");
+	  goto error;
   }
-  return true;
+
+  err = true;
+error:
+  return err;
 }
 
 /** \brief
@@ -506,10 +556,12 @@ boolean ATECCX08A::checkCount(boolean debug)
 
 boolean ATECCX08A::checkCrc(boolean debug)
 {
+  boolean err = false;
+
   // Check CRC[0] and CRC[1] are good to go.
   atca_calculate_crc(countGlobal - CRC_SIZE, inputBuffer);   // first calculate it
 
-  if(debug)
+  if (debug)
   {
     _debugSerial->print("CRC[0] Calc: 0x");
 	_debugSerial->println(crc[0], HEX);
@@ -517,13 +569,15 @@ boolean ATECCX08A::checkCrc(boolean debug)
     _debugSerial->println(crc[1], HEX);
   }
 
-  if( (inputBuffer[countGlobal-1] != crc[1]) || (inputBuffer[countGlobal-2] != crc[0]) )   // then check the CRCs.
+  if ( (inputBuffer[countGlobal - (CRC_SIZE - 1)] != crc[1]) || (inputBuffer[countGlobal - CRC_SIZE] != crc[0]) )   // then check the CRCs.
   {
-	if(debug) _debugSerial->println("Message CRC Error");
-	return false;
+	if (debug) _debugSerial->println("Message CRC Error");
+	  goto error;
   }
 
-  return true;
+  err = true;
+error:
+  return err;
 }
 
 /** \brief
@@ -587,29 +641,33 @@ void ATECCX08A::cleanInputBuffer()
 
 boolean ATECCX08A::createNewKeyPair(uint16_t slot)
 {
-  sendCommand(COMMAND_OPCODE_GENKEY, GENKEY_MODE_NEW_PRIVATE, slot);
+  boolean err = false;
+
+  if (!sendCommand(COMMAND_OPCODE_GENKEY, GENKEY_MODE_NEW_PRIVATE, slot))
+    goto error;
 
   delay(115); // time for IC to process command and exectute
 
   // Now let's read back from the IC.
 
-  if(receiveResponseData(PUBLIC_KEY_SIZE + CRC_SIZE + 1) == false) return false; // public key (64), plus crc (2), plus count (1)
-  idleMode();
-  boolean checkCountResult = checkCount();
-  boolean checkCrcResult = checkCrc();
+  if (receiveResponseData(RESPONSE_COUNT_SIZE + PUBLIC_KEY_SIZE + CRC_SIZE) == false) // public key (64), plus crc (2), plus count (1)
+    goto error;
 
+  idleMode();
 
   // update publicKey64Bytes[] array
-  if(checkCountResult && checkCrcResult) // check that it was a good message
+  if (!checkCount() || !checkCrc()) // check that it was a good message
+    goto error;
+
+  // we don't need the count value (which is currently the first byte of the inputBuffer)
+  for (int i = 0 ; i < PUBLIC_KEY_SIZE ; i++) // for loop through to grab all but the first position (which is "count" of the message)
   {
-	// we don't need the count value (which is currently the first byte of the inputBuffer)
-	for (int i = 0 ; i < PUBLIC_KEY_SIZE ; i++) // for loop through to grab all but the first position (which is "count" of the message)
-	{
-	  publicKey64Bytes[i] = inputBuffer[i + 1];
-	}
-	return true;
+    publicKey64Bytes[i] = inputBuffer[i + RESPONSE_COUNT_SIZE];
   }
-  else return false;
+
+  err = true;
+error:
+  return err;
 }
 
 /** \brief
@@ -629,44 +687,50 @@ boolean ATECCX08A::createNewKeyPair(uint16_t slot)
 
 boolean ATECCX08A::generatePublicKey(uint16_t slot, boolean debug)
 {
-  sendCommand(COMMAND_OPCODE_GENKEY, GENKEY_MODE_PUBLIC, slot);
+  boolean err = false;
+  if (!sendCommand(COMMAND_OPCODE_GENKEY, GENKEY_MODE_PUBLIC, slot))
+    goto error;
 
   delay(115); // time for IC to process command and exectute
 
   // Now let's read back from the IC.
-  if(receiveResponseData(PUBLIC_KEY_SIZE + CRC_SIZE + 1) == false) return false; // public key (64), plus crc (2), plus count (1)
+  // public key (64), plus crc (2), plus count (1)
+  if (receiveResponseData(RESPONSE_COUNT_SIZE + PUBLIC_KEY_SIZE + CRC_SIZE) == false)
+    goto error;
+
   idleMode();
-  boolean checkCountResult = checkCount();
-  boolean checkCrcResult = checkCrc();
 
   // update publicKey64Bytes[] array
-  if(checkCountResult && checkCrcResult) // check that it was a good message
+  if (!checkCount() || !checkCrc()) // check that it was a good message
+    goto error;
+
+  // we don't need the count value (which is currently the first byte of the inputBuffer)
+  for (int i = 0 ; i < PUBLIC_KEY_SIZE ; i++) // for loop through to grab all but the first position (which is "count" of the message)
   {
-    // we don't need the count value (which is currently the first byte of the inputBuffer)
-    for (int i = 0 ; i < PUBLIC_KEY_SIZE ; i++) // for loop through to grab all but the first position (which is "count" of the message)
+    publicKey64Bytes[i] = inputBuffer[RESPONSE_COUNT_SIZE + i];
+  }
+
+  if (debug)
+  {
+    _debugSerial->println("This device's Public Key:");
+    _debugSerial->println();
+    _debugSerial->println("uint8_t publicKey[64] = {");
+    for (int i = 0; i < sizeof(publicKey64Bytes) ; i++)
     {
-      publicKey64Bytes[i] = inputBuffer[i + 1];
+      _debugSerial->print("0x");
+      if ((publicKey64Bytes[i] >> 4) == 0) _debugSerial->print("0"); // print preceeding high nibble if it's zero
+      _debugSerial->print(publicKey64Bytes[i], HEX);
+      if (i != 63) _debugSerial->print(", ");
+      if ((63-i) % 16 == 0) _debugSerial->println();
     }
 
-	if(debug)
-	{
-		_debugSerial->println("This device's Public Key:");
-		_debugSerial->println();
-		_debugSerial->println("uint8_t publicKey[64] = {");
-		for (int i = 0; i < sizeof(publicKey64Bytes) ; i++)
-		{
-		  _debugSerial->print("0x");
-		  if((publicKey64Bytes[i] >> 4) == 0) _debugSerial->print("0"); // print preceeding high nibble if it's zero
-		  _debugSerial->print(publicKey64Bytes[i], HEX);
-		  if(i != 63) _debugSerial->print(", ");
-		  if((63-i) % 16 == 0) _debugSerial->println();
-		}
-		_debugSerial->println("};");
-		_debugSerial->println();
-	}
-	return true;
+    _debugSerial->println("};");
+    _debugSerial->println();
   }
-  else return false;
+
+  err = true;
+error:
+  return err;
 }
 
 /** \brief
@@ -681,33 +745,40 @@ boolean ATECCX08A::generatePublicKey(uint16_t slot, boolean debug)
 
 boolean ATECCX08A::read(uint8_t zone, uint16_t address, uint8_t length, boolean debug)
 {
+  boolean err = false;
   // adjust zone as needed for whether it's 4 or 32 bytes length read
   // bit 7 of zone needs to be set correctly
   // (0 = 4 Bytes are read)
   // (1 = 32 Bytes are read)
-  if(length == 32)
+  if (length == 32)
   {
 	zone |= 0b10000000; // set bit 7
   }
-  else if(length == 4)
+  else if (length == 4)
   {
 	zone &= ~0b10000000; // clear bit 7
   }
   else
   {
-	return 0; // invalid length, abort.
+	goto error; // invalid length, abort.
   }
 
-  sendCommand(COMMAND_OPCODE_READ, zone, address);
+  if (!sendCommand(COMMAND_OPCODE_READ, zone, address))
+    goto error;
 
   delay(1); // time for IC to process command and exectute
 
-  // Now let's read back from the IC.
-  if(receiveResponseData(length + 3, debug) == false) return false;
-  idleMode();
-  if(checkCount(debug) == false) return false;
-  if(checkCrc(debug) == false) return false;
+  // Now let's read back from the IC. ( + CRC_SIZE + count)
+  if (receiveResponseData(RESPONSE_COUNT_SIZE + length + CRC_SIZE, debug) == false)
+    goto error;
 
+  idleMode();
+
+  if (!checkCount(debug) || !checkCrc(debug))
+    goto error;
+
+  err = true;
+error:
   return true;
 }
 
@@ -722,35 +793,47 @@ boolean ATECCX08A::read(uint8_t zone, uint16_t address, uint8_t length, boolean 
 
 boolean ATECCX08A::write(uint8_t zone, uint16_t address, uint8_t *data, uint8_t length_of_data)
 {
+  boolean err = false;
   // adjust zone as needed for whether it's 4 or 32 bytes length write
   // bit 7 of param1 needs to be set correctly
   // (0 = 4 Bytes are written)
   // (1 = 32 Bytes are written)
-  if(length_of_data == 32)
+  if (length_of_data == 32)
   {
 	zone |= 0b10000000; // set bit 7
   }
-  else if(length_of_data == 4)
+  else if (length_of_data == 4)
   {
 	zone &= ~0b10000000; // clear bit 7
   }
   else
   {
-	return 0; // invalid length, abort.
+	goto error; // invalid length, abort.
   }
 
-  sendCommand(COMMAND_OPCODE_WRITE, zone, address, data, length_of_data);
+  if (!sendCommand(COMMAND_OPCODE_WRITE, zone, address, data, length_of_data))
+    goto error;
 
   delay(26); // time for IC to process command and exectute
 
   // Now let's read back from the IC and see if it reports back good things.
   countGlobal = 0;
-  if(receiveResponseData(4) == false) return false;
+  if (!receiveResponseData(RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE))
+    goto error;
+
   idleMode();
-  if(checkCount() == false) return false;
-  if(checkCrc() == false) return false;
-  if(inputBuffer[1] == 0x00) return true;   // If we hear a "0x00", that means it had a successful write
-  else return false;
+
+  if (!checkCount() || !checkCrc())
+    goto error;
+
+  // If we hear a "0x00", that means it had a successful write
+  if (inputBuffer[RESPONSE_SIGNAL_INDEX] != ATRCC508A_SUCCESSFUL_WRITE)
+    goto error;
+
+  err = true;
+
+error:
+  return err;
 }
 
 /** \brief
@@ -758,7 +841,7 @@ boolean ATECCX08A::write(uint8_t zone, uint16_t address, uint8_t *data, uint8_t 
 	createSignature(uint8_t *data, uint16_t slot)
 
     Creates a 64-byte ECC signature on 32 bytes of data.
-	Defautes to use private key located in slot 0.
+	Defaults to use private key located in slot 0.
 	Your signature will be available at global variable signature[].
 
 	Note, the IC actually needs you to store your data in a temporary memory location
@@ -768,10 +851,14 @@ boolean ATECCX08A::write(uint8_t zone, uint16_t address, uint8_t *data, uint8_t 
 
 boolean ATECCX08A::createSignature(uint8_t *data, uint16_t slot)
 {
-  boolean loadTempKeyResult = loadTempKey(data);
-  boolean signTempKeyResult = signTempKey(slot);
-  if(loadTempKeyResult && signTempKeyResult) return true;
-  else return false;
+  boolean err = false;
+
+  if (!loadTempKey(data) || !signTempKey(slot))
+    goto error;
+
+  err = true;
+error:
+  return err;
 }
 
 /** \brief
@@ -790,7 +877,10 @@ boolean ATECCX08A::createSignature(uint8_t *data, uint16_t slot)
 
 boolean ATECCX08A::loadTempKey(uint8_t *data)
 {
-  sendCommand(COMMAND_OPCODE_NONCE, NONCE_MODE_PASSTHROUGH, 0x0000, data, 32);
+  boolean err = false;
+
+  if (!sendCommand(COMMAND_OPCODE_NONCE, NONCE_MODE_PASSTHROUGH, 0x0000, data, 32))
+    goto error;
 
   // note, param2 is 0x0000 (and param1 is PASSTHROUGH), so OutData will be just a single byte of zero upon completion.
   // see ds pg 77 for more info
@@ -798,15 +888,21 @@ boolean ATECCX08A::loadTempKey(uint8_t *data)
   delay(7); // time for IC to process command and exectute
 
   // Now let's read back from the IC.
-  if(receiveResponseData(4) == false) return false; // responds with "0x00" if NONCE executed properly
+  if (!receiveResponseData(RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE))
+    goto error; // responds with "0x00" if NONCE executed properly
+
   idleMode();
-  boolean checkCountResult = checkCount();
-  boolean checkCrcResult = checkCrc();
 
-  if( (checkCountResult == false) || (checkCrcResult == false) ) return false;
+  if (!checkCount() || !checkCrc())
+    goto error;
 
-  if(inputBuffer[1] == 0x00) return true;   // If we hear a "0x00", that means it had a successful nonce
-  else return false;
+  // If we hear a "0x00", that means it had a successful nonce
+  if (inputBuffer[RESPONSE_SIGNAL_INDEX] != ATRCC508A_SUCCESSFUL_TEMPKEY)
+    goto error;
+
+  err = true;
+error:
+  return err;
 }
 
 /** \brief
@@ -814,46 +910,51 @@ boolean ATECCX08A::loadTempKey(uint8_t *data)
 	signTempKey(uint16_t slot)
 
 	Create a 64 byte ECC signature for the contents of TempKey using the private key in Slot.
-	Default slot is 0.
+	Default slot is 0
 
 	The response from this command (the signature) is stored in global varaible signature[].
 */
 
 boolean ATECCX08A::signTempKey(uint16_t slot)
 {
-  sendCommand(COMMAND_OPCODE_SIGN, SIGN_MODE_TEMPKEY, slot);
+  boolean err = false;
+
+  if (!sendCommand(COMMAND_OPCODE_SIGN, SIGN_MODE_TEMPKEY, slot))
+    goto error;
 
   delay(60); // time for IC to process command and exectute
 
   // Now let's read back from the IC.
-  if(receiveResponseData(SIGNATURE_SIZE + CRC_SIZE + 1) == false) return false; // signature (64), plus crc (2), plus count (1)
+  if (receiveResponseData(RESPONSE_COUNT_SIZE + SIGNATURE_SIZE + CRC_SIZE) == false) // signature (64), plus crc (2), plus count (1)
+    goto error;
+
   idleMode();
-  boolean checkCountResult = checkCount();
-  boolean checkCrcResult = checkCrc();
 
   // update signature[] array and print it to serial terminal nicely formatted for easy copy/pasting between sketches
-  if(checkCountResult && checkCrcResult) // check that it was a good message
-  {
-    // we don't need the count value (which is currently the first byte of the inputBuffer)
-    for (int i = 0 ; i < SIGNATURE_SIZE ; i++) // for loop through to grab all but the first position (which is "count" of the message)
-    {
-      signature[i] = inputBuffer[i + 1];
-    }
+  if (!checkCount() || !checkCrc())  // check that it was a good message
+    goto error;
 
-	_debugSerial->println();
-    _debugSerial->println("uint8_t signature[64] = {");
-    for (int i = 0; i < sizeof(signature) ; i++)
-    {
-	  _debugSerial->print("0x");
-	  if((signature[i] >> 4) == 0) _debugSerial->print("0"); // print preceeding high nibble if it's zero
-      _debugSerial->print(signature[i], HEX);
-      if(i != 63) _debugSerial->print(", ");
-	  if((63-i) % 16 == 0) _debugSerial->println();
-    }
-	_debugSerial->println("};");
-	return true;
+   // we don't need the count value (which is currently the first byte of the inputBuffer)
+  for (int i = 0 ; i < SIGNATURE_SIZE ; i++) // for loop through to grab all but the first position (which is "count" of the message)
+  {
+    signature[i] = inputBuffer[RESPONSE_COUNT_SIZE + i];
   }
-  else return false;
+
+  _debugSerial->println();
+  _debugSerial->println("uint8_t signature[64] = {");
+  for (int i = 0; i < sizeof(signature) ; i++)
+  {
+    _debugSerial->print("0x");
+    if ((signature[i] >> 4) == 0) _debugSerial->print("0"); // print preceeding high nibble if it's zero
+    _debugSerial->print(signature[i], HEX);
+    if (i != 63) _debugSerial->print(", ");
+    if ((63-i) % 16 == 0) _debugSerial->println();
+  }
+  _debugSerial->println("};");
+
+  err = true;
+error:
+	return err;
 }
 
 /** \brief
@@ -868,33 +969,41 @@ boolean ATECCX08A::signTempKey(uint16_t slot)
 
 boolean ATECCX08A::verifySignature(uint8_t *message, uint8_t *signature, uint8_t *publicKey)
 {
+  uint8_t data_sigAndPub[128];
+  boolean err = false;
+
   // first, let's load the message into TempKey on the device, this uses NONCE command in passthrough mode.
-  boolean loadTempKeyResult = loadTempKey(message);
-  if(loadTempKeyResult == false)
+  if (!loadTempKey(message))
   {
     _debugSerial->println("Load TempKey Failure");
-    return false;
+    goto error;
   }
 
   // We can only send one *single* data array to sendCommand as Param2, so we need to combine signature and public key.
-  uint8_t data_sigAndPub[128];
   memcpy(&data_sigAndPub[0], &signature[0], SIGNATURE_SIZE);	// append signature
   memcpy(&data_sigAndPub[SIGNATURE_SIZE], &publicKey[0], PUBLIC_KEY_SIZE);	// append external public key
 
-  sendCommand(COMMAND_OPCODE_VERIFY, VERIFY_MODE_EXTERNAL, VERIFY_PARAM2_KEYTYPE_ECC, data_sigAndPub, sizeof(data_sigAndPub));
+  if (!sendCommand(COMMAND_OPCODE_VERIFY, VERIFY_MODE_EXTERNAL, VERIFY_PARAM2_KEYTYPE_ECC, data_sigAndPub, sizeof(data_sigAndPub)))
+    goto error;
 
   delay(58); // time for IC to process command and exectute
 
   // Now let's read back from the IC.
-  if(receiveResponseData(4) == false) return false;
+  if (!receiveResponseData(RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE))
+    goto error;
+
   idleMode();
-  boolean checkCountResult = checkCount();
-  boolean checkCrcResult = checkCrc();
 
-  if( (checkCountResult == false) || (checkCrcResult == false) ) return false;
+  if (!checkCount() || !checkCrc())
+    goto error;
 
-  if(inputBuffer[1] == 0x00) return true;   // If we hear a "0x00", that means it had a successful verify
-  else return false;
+  // If we hear a "0x00", that means it had a successful verify
+  if (inputBuffer[RESPONSE_SIGNAL_INDEX] != ATRCC508A_SUCCESSFUL_VERIFY)
+    goto error;
+
+  err = true;
+error:
+  return err;
 }
 
 /** \brief
@@ -951,7 +1060,7 @@ boolean ATECCX08A::sendCommand(uint8_t command_opcode, uint8_t param1, uint16_t 
   boolean err = false;
 
   /* Validate no integer overflow */
-  if (length_of_data >= UINT8_MAX - ATRCC508A_PROTOCOL_OVERHEAD)
+  if (length_of_data > UINT8_MAX - ATRCC508A_PROTOCOL_OVERHEAD)
     goto error;
 
   total_transmission_length = length_of_data + ATRCC508A_PROTOCOL_OVERHEAD;
@@ -980,7 +1089,7 @@ boolean ATECCX08A::sendCommand(uint8_t command_opcode, uint8_t param1, uint16_t 
   //_debugSerial->println(crc[0], HEX);
   //_debugSerial->println(crc[1], HEX);
 
-  memcpy(&total_transmission[total_transmission_length - ATRCC508A_PROTOCOL_FIELD_SIZE_CRC], &crc[0], ATRCC508A_PROTOCOL_FIELD_SIZE_CRC);  // append crcs
+  memcpy(&total_transmission[total_transmission_length - ATRCC508A_PROTOCOL_FIELD_SIZE_CRC], crc, ATRCC508A_PROTOCOL_FIELD_SIZE_CRC);  // append crcs
 
   wakeUp();
 
