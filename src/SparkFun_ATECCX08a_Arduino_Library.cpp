@@ -135,7 +135,7 @@ boolean ATECCX08A::getInfo()
 
     // Now let's read back from the IC and see if it reports back good things.
   countGlobal = 0;
-  if (receiveResponseData(RESPONSE_COUNT_SIZE + RESPONSE_INFO_SIZE + CRC_SIZE, true) == false)
+  if (!receiveResponseData(RESPONSE_COUNT_SIZE + RESPONSE_INFO_SIZE + CRC_SIZE, true))
     goto error;
 
   idleMode();
@@ -319,7 +319,7 @@ boolean ATECCX08A::updateRandom32Bytes(boolean debug)
 
   // Now let's read back from the IC. This will be 35 bytes of data (count + 32_data_bytes + crc[0] + crc[1])
 
-  if (receiveResponseData(RESPONSE_COUNT_SIZE + RESPONSE_RANDOM_SIZE + CRC_SIZE, debug) == false)
+  if (!receiveResponseData(RESPONSE_COUNT_SIZE + RESPONSE_RANDOM_SIZE + CRC_SIZE, debug))
     goto error;
 
   idleMode();
@@ -650,7 +650,7 @@ boolean ATECCX08A::createNewKeyPair(uint16_t slot)
 
   // Now let's read back from the IC.
 
-  if (receiveResponseData(RESPONSE_COUNT_SIZE + PUBLIC_KEY_SIZE + CRC_SIZE) == false) // public key (64), plus crc (2), plus count (1)
+  if (!receiveResponseData(RESPONSE_COUNT_SIZE + PUBLIC_KEY_SIZE + CRC_SIZE)) // public key (64), plus crc (2), plus count (1)
     goto error;
 
   idleMode();
@@ -695,7 +695,7 @@ boolean ATECCX08A::generatePublicKey(uint16_t slot, boolean debug)
 
   // Now let's read back from the IC.
   // public key (64), plus crc (2), plus count (1)
-  if (receiveResponseData(RESPONSE_COUNT_SIZE + PUBLIC_KEY_SIZE + CRC_SIZE) == false)
+  if (!receiveResponseData(RESPONSE_COUNT_SIZE + PUBLIC_KEY_SIZE + CRC_SIZE))
     goto error;
 
   idleMode();
@@ -769,7 +769,7 @@ boolean ATECCX08A::read(uint8_t zone, uint16_t address, uint8_t length, boolean 
   delay(1); // time for IC to process command and exectute
 
   // Now let's read back from the IC. ( + CRC_SIZE + count)
-  if (receiveResponseData(RESPONSE_COUNT_SIZE + length + CRC_SIZE, debug) == false)
+  if (!receiveResponseData(RESPONSE_COUNT_SIZE + length + CRC_SIZE, debug))
     goto error;
 
   idleMode();
@@ -925,7 +925,7 @@ boolean ATECCX08A::signTempKey(uint16_t slot)
   delay(60); // time for IC to process command and exectute
 
   // Now let's read back from the IC.
-  if (receiveResponseData(RESPONSE_COUNT_SIZE + SIGNATURE_SIZE + CRC_SIZE) == false) // signature (64), plus crc (2), plus count (1)
+  if (!receiveResponseData(RESPONSE_COUNT_SIZE + SIGNATURE_SIZE + CRC_SIZE)) // signature (64), plus crc (2), plus count (1)
     goto error;
 
   idleMode();
