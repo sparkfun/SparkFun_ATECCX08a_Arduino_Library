@@ -34,12 +34,14 @@
 /* Protocol + Cryptographic defines */
 #define RESPONSE_COUNT_SIZE  1
 #define RESPONSE_SIGNAL_SIZE 1
+#define RESPONSE_SHA_SIZE    32
 #define RESPONSE_INFO_SIZE   4
 #define RESPONSE_RANDOM_SIZE 32
 #define CRC_SIZE             2
 #define CONFIG_ZONE_SIZE     128
 #define SERIAL_NUMBER_SIZE   10
 
+#define SHA256_SIZE          32
 #define PUBLIC_KEY_SIZE      64
 #define SIGNATURE_SIZE       64
 #define BUFFER_SIZE          128
@@ -47,6 +49,7 @@
 /* Response signals always come after the first count byte */
 #define RESPONSE_COUNT_INDEX 0
 #define RESPONSE_SIGNAL_INDEX RESPONSE_COUNT_SIZE
+#define RESPONSE_SHA_INDEX RESPONSE_COUNT_SIZE
 #define RESPONSE_GETINFO_SIGNAL_INDEX (RESPONSE_COUNT_SIZE + 2)
 
 /* Protocol Indices */
@@ -72,6 +75,7 @@
 #define ATRCC508A_SUCCESSFUL_TEMPKEY 0x00
 #define ATRCC508A_SUCCESSFUL_VERIFY  0x00
 #define ATRCC508A_SUCCESSFUL_WRITE   0x00
+#define ATRCC508A_SUCCESSFUL_SHA     0x00
 #define ATRCC508A_SUCCESSFUL_LOCK    0x00
 #define ATRCC508A_SUCCESSFUL_WAKEUP  0x11
 #define ATRCC508A_SUCCESSFUL_GETINFO 0x50 /* Revision number */
@@ -118,6 +122,12 @@
 // 		_ ? _ _  _ _ _ _ 	Bits 6 Unused, must be zero
 // 		_ _ ? ?  ? ? _ _ 	Bits 5-2 Slot number (in this example, we use slot 0, so "0 0 0 0")
 // 		_ _ _ _  _ _ ? ? 	Bits 1-0 Zone or locktype. 00=Config, 01=Data/OTP, 10=Single Slot in Data, 11=illegal
+
+// SHA Params
+#define SHA_START						0b00000000
+#define SHA_UPDATE						0b00000001
+#define SHA_END							0b00000010
+#define SHA_BLOCK_SIZE					64
 
 #define LOCK_MODE_ZONE_CONFIG 			0b10000000
 #define LOCK_MODE_ZONE_DATA_AND_OTP 	0b10000001
@@ -187,6 +197,9 @@ class ATECCX08A {
 	long getRandomLong(boolean debug = false);
 	long random(long max);
 	long random(long min, long max);
+
+	// SHA256
+	boolean sha256(uint8_t * data, size_t len, uint8_t * hash);
 
 	uint8_t crc[CRC_SIZE] = {0, 0};
 	void atca_calculate_crc(uint8_t length, uint8_t *data);

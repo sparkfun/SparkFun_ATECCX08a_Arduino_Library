@@ -22,6 +22,8 @@
 */
 
 #include "SparkFun_ATECCX08a_Arduino_Library.h"
+#include <am_util_debug.h>
+#define uprintf am_util_debug_printf
 
 /** \brief
 
@@ -108,7 +110,7 @@ error:
 void ATECCX08A::idleMode()
 {
   _i2cPort->beginTransmission(_i2caddr); // set up to write to address
-  _i2cPort->write(WORD_ADDRESS_VALUE_IDLE); // enter idle command (aka word address - the first part of every communication to the IC)
+  _i2cPort->write_byte(WORD_ADDRESS_VALUE_IDLE); // enter idle command (aka word address - the first part of every communication to the IC)
   _i2cPort->endTransmission(); // actually send it
 }
 
@@ -452,7 +454,6 @@ long ATECCX08A::random(long min, long max)
 	It needs length argument:
 	length: length of data to receive (includes count + DATA + 2 crc bytes)
 */
-
 boolean ATECCX08A::receiveResponseData(uint8_t length, boolean debug)
 {
 
@@ -460,7 +461,6 @@ boolean ATECCX08A::receiveResponseData(uint8_t length, boolean debug)
   // if length is less than or equal to 32, then just pull it in.
   // if length is greater than 32, then we must first pull in 32, then pull in remainder.
   // lets use length as our tracker and we will subtract from it as we pull in data.
-
   countGlobal = 0; // reset for each new message (most important, like wensleydale at a cheese party)
   cleanInputBuffer();
   byte requestAttempts = 0; // keep track of how many times we've attempted to request, to break out if necessary
@@ -481,12 +481,13 @@ boolean ATECCX08A::receiveResponseData(uint8_t length, boolean debug)
       requestAmount = length; // now we're ready to pull in the last chunk.
     }
 
-    _i2cPort->requestFrom(_i2caddr, requestAmount);    // request bytes from slave
+    uint32_t ret = _i2cPort->requestFrom(_i2caddr, requestAmount);    // request bytes from slave
+
     requestAttempts++;
 
-    while (_i2cPort->available())   // slave may send less than requested
+    while (_i2cPort->available2())   // slave may send less than requested
     {
-      uint8_t value = _i2cPort->read();
+      uint8_t value = _i2cPort->read2();
 
       /* Make sure not to read beyond buffer size */
       if (countGlobal < sizeof(inputBuffer))
@@ -499,7 +500,7 @@ boolean ATECCX08A::receiveResponseData(uint8_t length, boolean debug)
     if (requestAttempts == ATRCC508A_MAX_RETRIES)
       break; // this probably means that the device is not responding.
   }
-
+#if 0
   if (debug)
   {
     _debugSerial->print("inputBuffer: ");
@@ -510,6 +511,7 @@ boolean ATECCX08A::receiveResponseData(uint8_t length, boolean debug)
     }
     _debugSerial->println();
   }
+#endif
 
   return true;
 }
@@ -1006,6 +1008,65 @@ error:
   return err;
 }
 
+boolean ATECCX08A::sha256(uint8_t * plain, size_t len, uint8_t * hash)
+{
+	int i;
+	int j;
+	size_t chunks = len / SHA_BLOCK_SIZE + !!(len % SHA_BLOCK_SIZE);
+	boolean err = false;
+
+	if (!sendCommand(COMMAND_OPCODE_SHA, SHA_START, 0))
+		goto error;
+
+	/* Divide into blocks of 64 bytes per chunk */
+	for (i = 0; i < chunks; ++i)
+	{
+		size_t data_size = SHA_BLOCK_SIZE;
+		uint8_t chunk[SHA_BLOCK_SIZE];
+
+		delay(9);
+
+		if (!receiveResponseData(RESPONSE_COUNT_SIZE + RESPONSE_SIGNAL_SIZE + CRC_SIZE))
+			goto error;
+
+		idleMode();
+
+		if (!checkCount() || !checkCrc())
+			goto error;
+
+		// If we hear a "0x00", that means it had a successful load
+		if (inputBuffer[RESPONSE_SIGNAL_INDEX] != ATRCC508A_SUCCESSFUL_SHA)
+			goto error;
+
+		if ((len % SHA_BLOCK_SIZE) && (i + 1 == chunks))
+			data_size = len % SHA_BLOCK_SIZE;
+
+		/* Send next */
+		if (!sendCommand(COMMAND_OPCODE_SHA, (i + 1 != chunks) ? SHA_UPDATE : SHA_END, data_size, plain + i * SHA_BLOCK_SIZE, data_size))
+			goto error;
+	}
+
+	/* Read digest */
+	delay(9);
+
+	if (!receiveResponseData(RESPONSE_COUNT_SIZE + RESPONSE_SHA_SIZE + CRC_SIZE))
+		goto error;
+
+	idleMode();
+
+	if (!checkCount() || !checkCrc())
+		goto error;
+
+	/* Copy digest */
+	for (i = 0; i < SHA256_SIZE; ++i)
+	{
+		hash[i] = inputBuffer[RESPONSE_SHA_INDEX + i];
+	}
+
+	err = true;
+error:
+	return err;
+}
 /** \brief
 
 	writeConfigSparkFun()
@@ -1094,7 +1155,7 @@ boolean ATECCX08A::sendCommand(uint8_t command_opcode, uint8_t param1, uint16_t 
   wakeUp();
 
   _i2cPort->beginTransmission(_i2caddr);
-  _i2cPort->write(total_transmission, total_transmission_length);
+  _i2cPort->write2(total_transmission, total_transmission_length);
   _i2cPort->endTransmission();
 
   err = true;
