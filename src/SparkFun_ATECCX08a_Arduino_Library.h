@@ -46,10 +46,21 @@
 #define SIGNATURE_SIZE       64
 #define BUFFER_SIZE          128
 
+#define DATA_ZONE_SLOTS	     16
+
+#define WRITE_CONFIG(SCONFIG)	(SCONFIG & 0b1111000000000000)
+#define WRITE_KEY(SCONFIG)		(SCONFIG & 0b0000111100000000)
+#define IS_SECRET(SCONFIG)		(SCONFIG & 0b0000000010000000)
+#define ENCRYPT_READ(SCONFIG)	(SCONFIG & 0b0000000001000000)
+#define LIMITED_USE(SCONFIG)	(SCONFIG & 0b0000000000100000)
+#define NO_MAC(SCONFIG)			(SCONFIG & 0b0000000000010000)
+#define READ_KEY(SCONFIG)		(SCONFIG & 0b0000000000001111)
+
 /* Response signals always come after the first count byte */
 #define RESPONSE_COUNT_INDEX 0
 #define RESPONSE_SIGNAL_INDEX RESPONSE_COUNT_SIZE
 #define RESPONSE_SHA_INDEX RESPONSE_COUNT_SIZE
+#define RESPONSE_READ_INDEX RESPONSE_COUNT_SIZE
 #define RESPONSE_GETINFO_SIGNAL_INDEX (RESPONSE_COUNT_SIZE + 2)
 
 /* Protocol Indices */
@@ -86,13 +97,15 @@
 
 /* configZone EEPROM mapping */
 #define CONFIG_ZONE_READ_SIZE    32
-
 #define CONFIG_ZONE_SERIAL_PART0    0
 #define CONFIG_ZONE_SERIAL_PART1    8
 #define CONFIG_ZONE_REVISION_NUMBER 4
+#define CONFIG_ZONE_SLOT_CONFIG 20
 #define CONFIG_ZONE_OTP_LOCK     86
 #define CONFIG_ZONE_LOCK_STATUS  87
-#define CONFIG_ZONE_SLOTS_LOCK   88
+#define CONFIG_ZONE_SLOTS_LOCK0   88
+#define CONFIG_ZONE_SLOTS_LOCK1   89
+#define CONFIG_ZONE_KEY_CONFIG	  96
 
 
 #define ATECC508A_ADDRESS_DEFAULT 0x60 //7-bit unshifted default I2C Address
@@ -133,6 +146,18 @@
 #define LOCK_MODE_ZONE_DATA_AND_OTP 	0b10000001
 #define LOCK_MODE_SLOT0					0b10000010
 
+#define KEY_CONFIG_OFFSET_X509ID		14
+#define KEY_CONFIG_OFFSET_RFU			13
+#define KEY_CONFIG_OFFSET_INTRUSION_DIS	12
+#define KEY_CONFIG_OFFSET_AUTH_KEY		8
+#define KEY_CONFIG_OFFSET_REQ_AUTH		7
+#define KEY_CONFIG_OFFSET_REQ_RANDOM	6
+#define KEY_CONFIG_OFFSET_LOCKABLE		5
+#define KEY_CONFIG_OFFSET_KEY_TYPE		2
+#define KEY_CONFIG_OFFSET_PUB_INFO		1
+#define KEY_CONFIG_OFFSET_PRIVATE		0
+#define KEY_CONFIG_SET(data, config)	((data) << (config))
+
 // GenKey command PARAM1 zone options (aka Mode). more info at table on datasheet page 71
 #define GENKEY_MODE_PUBLIC 			0b00000000
 #define GENKEY_MODE_NEW_PRIVATE 	0b00000100
@@ -147,6 +172,11 @@
 #define ZONE_CONFIG 0x00
 #define ZONE_OTP 0x01
 #define ZONE_DATA 0x02
+
+#define SLOT_CONFIG_ADDRESS(SLOT)					(((CONFIG_ZONE_SLOT_CONFIG) + sizeof(uint16_t) * (SLOT)) >> 2)
+#define KEY_CONFIG_ADDRESS(SLOT)					(((CONFIG_ZONE_KEY_CONFIG) + sizeof(uint16_t) * (SLOT)) >> 2)
+#define EEPROM_CONFIG_ADDRESS(OFFSET)				((OFFSET) >> 2)
+#define EEPROM_DATA_ADDRESS(SLOT, BLOCK, OFFSET)	((((BLOCK) & 0b00001111) << 8) | ((((SLOT) & 0b01111) << 3) | ((OFFSET) & 0b00000111)))
 
 #define ADDRESS_CONFIG_READ_BLOCK_0 0x0000 // 00000000 00000000 // param2 (byte 0), address block bits: _ _ _ 0  0 _ _ _
 #define ADDRESS_CONFIG_READ_BLOCK_1 0x0008 // 00000000 00001000 // param2 (byte 0), address block bits: _ _ _ 0  1 _ _ _
@@ -170,6 +200,8 @@ class ATECCX08A {
 	boolean configLockStatus; // pulled from configZone[87], then set according to status (0x55=UNlocked, 0x00=Locked)
 	boolean dataOTPLockStatus; // pulled from configZone[86], then set according to status (0x55=UNlocked, 0x00=Locked)
 	boolean slot0LockStatus; // pulled from configZone[88], then set according to slot (bit 0) status
+	uint16_t SlotConfig[DATA_ZONE_SLOTS];
+	uint16_t KeyConfig[DATA_ZONE_SLOTS];
 
 	byte publicKey64Bytes[PUBLIC_KEY_SIZE]; // used to store the public key returned when you (1) create a keypair, or (2) read a public key
 	uint8_t signature[SIGNATURE_SIZE];
@@ -214,6 +246,7 @@ class ATECCX08A {
 	boolean verifySignature(uint8_t *message, uint8_t *signature, uint8_t *publicKey); // external ECC publicKey only
 
 	boolean read(uint8_t zone, uint16_t address, uint8_t length, boolean debug = false);
+	boolean read_output(uint8_t zone, uint16_t address, uint8_t length, uint8_t * output, boolean debug = false);
 	boolean write(uint8_t zone, uint16_t address, uint8_t *data, uint8_t length_of_data);
 
 	boolean readConfigZone(boolean debug = true);

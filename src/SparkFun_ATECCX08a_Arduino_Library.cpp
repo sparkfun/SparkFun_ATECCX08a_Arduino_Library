@@ -209,8 +209,11 @@ boolean ATECCX08A::readConfigZone(boolean debug)
   if (configZone[CONFIG_ZONE_OTP_LOCK] == 0x00) dataOTPLockStatus = true;
   else dataOTPLockStatus = false;
 
-  if ( (configZone[CONFIG_ZONE_SLOTS_LOCK] & (1 << 0) ) == true) slot0LockStatus = false; // LSB is slot 0. if bit set = UN-locked.
+  if ( (configZone[CONFIG_ZONE_SLOTS_LOCK0] & (1 << 0) ) == true) slot0LockStatus = false; // LSB is slot 0. if bit set = UN-locked.
   else slot0LockStatus = true;
+
+  memcpy(SlotConfig, &configZone[CONFIG_ZONE_SLOT_CONFIG], sizeof(uint16_t) * DATA_ZONE_SLOTS);
+  memcpy(KeyConfig, &configZone[CONFIG_ZONE_KEY_CONFIG], sizeof(uint16_t) * DATA_ZONE_SLOTS);
 
   if (debug)
   {
@@ -747,6 +750,12 @@ error:
 
 boolean ATECCX08A::read(uint8_t zone, uint16_t address, uint8_t length, boolean debug)
 {
+	return read_output(zone, address, length, NULL, debug);
+}
+
+boolean ATECCX08A::read_output(uint8_t zone, uint16_t address, uint8_t length, uint8_t * output, boolean debug)
+{
+  int i;
   boolean err = false;
   // adjust zone as needed for whether it's 4 or 32 bytes length read
   // bit 7 of zone needs to be set correctly
@@ -779,9 +788,25 @@ boolean ATECCX08A::read(uint8_t zone, uint16_t address, uint8_t length, boolean 
   if (!checkCount(debug) || !checkCrc(debug))
     goto error;
 
+  /* Copy data to output */
+  if (output)
+  {
+#if 0
+      uprintf("inputBuffer: ");
+      for (i = 0; i < RESPONSE_COUNT_SIZE + length + CRC_SIZE; ++i)
+      {
+          if (inputBuffer[i] >> 4 == 0)
+              uprintf("0");
+          uprintf("%x ", inputBuffer[i]);
+      }
+      uprintf("\r\n");
+#endif
+	  memcpy(output, inputBuffer + RESPONSE_READ_INDEX, length);
+  }
+
   err = true;
 error:
-  return true;
+  return err;
 }
 
 /** \brief
@@ -830,7 +855,12 @@ boolean ATECCX08A::write(uint8_t zone, uint16_t address, uint8_t *data, uint8_t 
 
   // If we hear a "0x00", that means it had a successful write
   if (inputBuffer[RESPONSE_SIGNAL_INDEX] != ATRCC508A_SUCCESSFUL_WRITE)
+  {
+     uprintf("Write error code: %x\r\n", inputBuffer[RESPONSE_SIGNAL_INDEX]);
+
     goto error;
+  }
+
 
   err = true;
 
