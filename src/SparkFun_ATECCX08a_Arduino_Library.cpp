@@ -110,7 +110,7 @@ error:
 void ATECCX08A::idleMode()
 {
   _i2cPort->beginTransmission(_i2caddr); // set up to write to address
-  _i2cPort->write_byte(WORD_ADDRESS_VALUE_IDLE); // enter idle command (aka word address - the first part of every communication to the IC)
+  _i2cPort->write(WORD_ADDRESS_VALUE_IDLE); // enter idle command (aka word address - the first part of every communication to the IC)
   _i2cPort->endTransmission(); // actually send it
 }
 
@@ -488,9 +488,9 @@ boolean ATECCX08A::receiveResponseData(uint8_t length, boolean debug)
 
     requestAttempts++;
 
-    while (_i2cPort->available2())   // slave may send less than requested
+    while (_i2cPort->available())   // slave may send less than requested
     {
-      uint8_t value = _i2cPort->read2();
+      uint8_t value = _i2cPort->read();
 
       /* Make sure not to read beyond buffer size */
       if (countGlobal < sizeof(inputBuffer))
@@ -503,7 +503,7 @@ boolean ATECCX08A::receiveResponseData(uint8_t length, boolean debug)
     if (requestAttempts == ATRCC508A_MAX_RETRIES)
       break; // this probably means that the device is not responding.
   }
-#if 0
+
   if (debug)
   {
     _debugSerial->print("inputBuffer: ");
@@ -514,7 +514,6 @@ boolean ATECCX08A::receiveResponseData(uint8_t length, boolean debug)
     }
     _debugSerial->println();
   }
-#endif
 
   return true;
 }
@@ -791,16 +790,6 @@ boolean ATECCX08A::read_output(uint8_t zone, uint16_t address, uint8_t length, u
   /* Copy data to output */
   if (output)
   {
-#if 0
-      uprintf("inputBuffer: ");
-      for (i = 0; i < RESPONSE_COUNT_SIZE + length + CRC_SIZE; ++i)
-      {
-          if (inputBuffer[i] >> 4 == 0)
-              uprintf("0");
-          uprintf("%x ", inputBuffer[i]);
-      }
-      uprintf("\r\n");
-#endif
 	  memcpy(output, inputBuffer + RESPONSE_READ_INDEX, length);
   }
 
@@ -856,8 +845,6 @@ boolean ATECCX08A::write(uint8_t zone, uint16_t address, uint8_t *data, uint8_t 
   // If we hear a "0x00", that means it had a successful write
   if (inputBuffer[RESPONSE_SIGNAL_INDEX] != ATRCC508A_SUCCESSFUL_WRITE)
   {
-     uprintf("Write error code: %x\r\n", inputBuffer[RESPONSE_SIGNAL_INDEX]);
-
     goto error;
   }
 
@@ -1185,7 +1172,7 @@ boolean ATECCX08A::sendCommand(uint8_t command_opcode, uint8_t param1, uint16_t 
   wakeUp();
 
   _i2cPort->beginTransmission(_i2caddr);
-  _i2cPort->write2(total_transmission, total_transmission_length);
+  _i2cPort->write(total_transmission, total_transmission_length);
   _i2cPort->endTransmission();
 
   err = true;

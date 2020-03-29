@@ -41,6 +41,7 @@
 #define CONFIG_ZONE_SIZE     128
 #define SERIAL_NUMBER_SIZE   10
 
+#define RANDOM_BYTES_BLOCK_SIZE 32
 #define SHA256_SIZE          32
 #define PUBLIC_KEY_SIZE      64
 #define SIGNATURE_SIZE       64
