@@ -22,8 +22,6 @@
 */
 
 #include "SparkFun_ATECCX08a_Arduino_Library.h"
-#include <am_util_debug.h>
-#define uprintf am_util_debug_printf
 
 /** \brief
 
