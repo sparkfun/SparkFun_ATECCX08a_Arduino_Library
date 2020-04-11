@@ -38,7 +38,11 @@ void setup() {
   else
   {
     Serial.println("Device not found. Check wiring.");
-    while (1); // stall out forever
+    while (1) {// stall out forever
+#if defined(ESP8266)
+      yield();
+#endif
+    }
   }
 
   printInfo(); // see function below for library calls and data handling
@@ -47,7 +51,11 @@ void setup() {
   Serial.println("***Note, this is PERMANENT and cannot be changed later***");
   Serial.println("***If you do not want to do this, type an 'n' or unplug now.***");
 
-  while (Serial.available() == 0); // wait for user input
+  while (Serial.available() == 0) { // wait for user input
+#if defined(ESP8266)
+      yield();
+#endif
+    }
 
   if (Serial.read() == 'y')
   {
