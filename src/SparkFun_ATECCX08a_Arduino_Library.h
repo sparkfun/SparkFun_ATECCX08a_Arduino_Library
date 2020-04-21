@@ -29,8 +29,85 @@
 #include "WProgram.h"
 #endif
 
-
 #include "Wire.h"
+
+/* Protocol + Cryptographic defines */
+#define RESPONSE_COUNT_SIZE  1
+#define RESPONSE_SIGNAL_SIZE 1
+#define RESPONSE_SHA_SIZE    32
+#define RESPONSE_INFO_SIZE   4
+#define RESPONSE_RANDOM_SIZE 32
+#define CRC_SIZE             2
+#define CONFIG_ZONE_SIZE     128
+#define SERIAL_NUMBER_SIZE   10
+
+#define RANDOM_BYTES_BLOCK_SIZE 32
+#define SHA256_SIZE          32
+#define PUBLIC_KEY_SIZE      64
+#define SIGNATURE_SIZE       64
+#define BUFFER_SIZE          128
+
+#define DATA_ZONE_SLOTS	     16
+
+#define WRITE_CONFIG(SCONFIG)	(SCONFIG & 0b1111000000000000)
+#define WRITE_KEY(SCONFIG)		(SCONFIG & 0b0000111100000000)
+#define IS_SECRET(SCONFIG)		(SCONFIG & 0b0000000010000000)
+#define ENCRYPT_READ(SCONFIG)	(SCONFIG & 0b0000000001000000)
+#define LIMITED_USE(SCONFIG)	(SCONFIG & 0b0000000000100000)
+#define NO_MAC(SCONFIG)			(SCONFIG & 0b0000000000010000)
+#define READ_KEY(SCONFIG)		(SCONFIG & 0b0000000000001111)
+
+/* Response signals always come after the first count byte */
+#define RESPONSE_COUNT_INDEX 0
+#define RESPONSE_SIGNAL_INDEX RESPONSE_COUNT_SIZE
+#define RESPONSE_SHA_INDEX RESPONSE_COUNT_SIZE
+#define RESPONSE_READ_INDEX RESPONSE_COUNT_SIZE
+#define RESPONSE_GETINFO_SIGNAL_INDEX (RESPONSE_COUNT_SIZE + 2)
+
+/* Protocol Indices */
+#define ATRCC508A_PROTOCOL_FIELD_COMMAND 0
+#define ATRCC508A_PROTOCOL_FIELD_LENGTH  1
+#define ATRCC508A_PROTOCOL_FIELD_OPCODE  2
+#define ATRCC508A_PROTOCOL_FIELD_PARAM1  3
+#define ATRCC508A_PROTOCOL_FIELD_PARAM2  4
+#define ATRCC508A_PROTOCOL_FIELD_DATA    6
+
+/* Protocl Sizes */
+#define ATRCC508A_PROTOCOL_FIELD_SIZE_COMMAND 1
+#define ATRCC508A_PROTOCOL_FIELD_SIZE_LENGTH  1
+#define ATRCC508A_PROTOCOL_FIELD_SIZE_OPCODE  1
+#define ATRCC508A_PROTOCOL_FIELD_SIZE_PARAM1  1
+#define ATRCC508A_PROTOCOL_FIELD_SIZE_PARAM2  2
+#define ATRCC508A_PROTOCOL_FIELD_SIZE_CRC     CRC_SIZE
+
+/* Protocol overhead at sendCommand(): word address val (1) + count (1) + command opcode (1) param1 (1) + param2 (2) data (0-?) + crc (2) */
+#define ATRCC508A_PROTOCOL_OVERHEAD (ATRCC508A_PROTOCOL_FIELD_SIZE_COMMAND + ATRCC508A_PROTOCOL_FIELD_SIZE_LENGTH + ATRCC508A_PROTOCOL_FIELD_SIZE_OPCODE + ATRCC508A_PROTOCOL_FIELD_SIZE_PARAM1 + ATRCC508A_PROTOCOL_FIELD_SIZE_PARAM2 + ATRCC508A_PROTOCOL_FIELD_SIZE_CRC)
+
+/* Protocol codes */
+#define ATRCC508A_SUCCESSFUL_TEMPKEY 0x00
+#define ATRCC508A_SUCCESSFUL_VERIFY  0x00
+#define ATRCC508A_SUCCESSFUL_WRITE   0x00
+#define ATRCC508A_SUCCESSFUL_SHA     0x00
+#define ATRCC508A_SUCCESSFUL_LOCK    0x00
+#define ATRCC508A_SUCCESSFUL_WAKEUP  0x11
+#define ATRCC508A_SUCCESSFUL_GETINFO 0x50 /* Revision number */
+
+/* Receive constants */
+#define ATRCC508A_MAX_REQUEST_SIZE 32
+#define ATRCC508A_MAX_RETRIES 20
+
+/* configZone EEPROM mapping */
+#define CONFIG_ZONE_READ_SIZE    32
+#define CONFIG_ZONE_SERIAL_PART0    0
+#define CONFIG_ZONE_SERIAL_PART1    8
+#define CONFIG_ZONE_REVISION_NUMBER 4
+#define CONFIG_ZONE_SLOT_CONFIG 20
+#define CONFIG_ZONE_OTP_LOCK     86
+#define CONFIG_ZONE_LOCK_STATUS  87
+#define CONFIG_ZONE_SLOTS_LOCK0   88
+#define CONFIG_ZONE_SLOTS_LOCK1   89
+#define CONFIG_ZONE_KEY_CONFIG	  96
+
 
 #define ATECC508A_ADDRESS_DEFAULT 0x60 //7-bit unshifted default I2C Address
 // 0x60 on a fresh chip. note, this is software definable
@@ -38,7 +115,7 @@
 // WORD ADDRESS VALUES
 // These are sent in any write sequence to the IC.
 // They tell the IC what we are going to do: Reset, Sleep, Idle, Command.
-#define WORD_ADDRESS_VALUE_COMMAND 	0x03	// This is the "command" word address, 
+#define WORD_ADDRESS_VALUE_COMMAND 	0x03	// This is the "command" word address,
 //this tells the IC we are going to send a command, and is used for most communications to the IC
 #define WORD_ADDRESS_VALUE_IDLE 0x02 // used to enter idle mode
 
@@ -50,7 +127,7 @@
 #define COMMAND_OPCODE_WRITE 	0x12 // Return data at a specific zone and address.
 #define COMMAND_OPCODE_SHA 		0x47 // Computes a SHA-256 or HMAC/SHA digest for general purpose use by the system.
 #define COMMAND_OPCODE_GENKEY 	0x40 // Creates a key (public and/or private) and stores it in a memory key slot
-#define COMMAND_OPCODE_NONCE 	0x16 // 
+#define COMMAND_OPCODE_NONCE 	0x16 //
 #define COMMAND_OPCODE_SIGN 	0x41 // Create an ECC signature with contents of TempKey and designated key slot
 #define COMMAND_OPCODE_VERIFY 	0x45 // takes an ECDSA <R,S> signature and verifies that it is correctly generated from a given message and public key
 
@@ -60,9 +137,27 @@
 // 		_ _ ? ?  ? ? _ _ 	Bits 5-2 Slot number (in this example, we use slot 0, so "0 0 0 0")
 // 		_ _ _ _  _ _ ? ? 	Bits 1-0 Zone or locktype. 00=Config, 01=Data/OTP, 10=Single Slot in Data, 11=illegal
 
+// SHA Params
+#define SHA_START						0b00000000
+#define SHA_UPDATE						0b00000001
+#define SHA_END							0b00000010
+#define SHA_BLOCK_SIZE					64
+
 #define LOCK_MODE_ZONE_CONFIG 			0b10000000
 #define LOCK_MODE_ZONE_DATA_AND_OTP 	0b10000001
 #define LOCK_MODE_SLOT0					0b10000010
+
+#define KEY_CONFIG_OFFSET_X509ID		14
+#define KEY_CONFIG_OFFSET_RFU			13
+#define KEY_CONFIG_OFFSET_INTRUSION_DIS	12
+#define KEY_CONFIG_OFFSET_AUTH_KEY		8
+#define KEY_CONFIG_OFFSET_REQ_AUTH		7
+#define KEY_CONFIG_OFFSET_REQ_RANDOM	6
+#define KEY_CONFIG_OFFSET_LOCKABLE		5
+#define KEY_CONFIG_OFFSET_KEY_TYPE		2
+#define KEY_CONFIG_OFFSET_PUB_INFO		1
+#define KEY_CONFIG_OFFSET_PRIVATE		0
+#define KEY_CONFIG_SET(data, config)	((data) << (config))
 
 // GenKey command PARAM1 zone options (aka Mode). more info at table on datasheet page 71
 #define GENKEY_MODE_PUBLIC 			0b00000000
@@ -79,38 +174,45 @@
 #define ZONE_OTP 0x01
 #define ZONE_DATA 0x02
 
-#define ADDRESS_CONFIG_READ_BLOCK_0 0x0000 // 00000000 00000000 // param2 (byte 0), address block bits: _ _ _ 0  0 _ _ _ 
-#define ADDRESS_CONFIG_READ_BLOCK_1 0x0008 // 00000000 00001000 // param2 (byte 0), address block bits: _ _ _ 0  1 _ _ _ 
-#define ADDRESS_CONFIG_READ_BLOCK_2 0x0010 // 00000000 00010000 // param2 (byte 0), address block bits: _ _ _ 1  0 _ _ _ 
-#define ADDRESS_CONFIG_READ_BLOCK_3 0x0018 // 00000000 00011000 // param2 (byte 0), address block bits: _ _ _ 1  1 _ _ _ 
+#define SLOT_CONFIG_ADDRESS(SLOT)					(((CONFIG_ZONE_SLOT_CONFIG) + sizeof(uint16_t) * (SLOT)) >> 2)
+#define KEY_CONFIG_ADDRESS(SLOT)					(((CONFIG_ZONE_KEY_CONFIG) + sizeof(uint16_t) * (SLOT)) >> 2)
+#define EEPROM_CONFIG_ADDRESS(OFFSET)				((OFFSET) >> 2)
+#define EEPROM_DATA_ADDRESS(SLOT, BLOCK, OFFSET)	((((BLOCK) & 0b00001111) << 8) | ((((SLOT) & 0b01111) << 3) | ((OFFSET) & 0b00000111)))
+
+#define ADDRESS_CONFIG_READ_BLOCK_0 0x0000 // 00000000 00000000 // param2 (byte 0), address block bits: _ _ _ 0  0 _ _ _
+#define ADDRESS_CONFIG_READ_BLOCK_1 0x0008 // 00000000 00001000 // param2 (byte 0), address block bits: _ _ _ 0  1 _ _ _
+#define ADDRESS_CONFIG_READ_BLOCK_2 0x0010 // 00000000 00010000 // param2 (byte 0), address block bits: _ _ _ 1  0 _ _ _
+#define ADDRESS_CONFIG_READ_BLOCK_3 0x0018 // 00000000 00011000 // param2 (byte 0), address block bits: _ _ _ 1  1 _ _ _
 
 class ATECCX08A {
   public:
-  
+
     //By default use Wire, standard I2C speed, and the default ADS1015 address
 	#if defined(ARDUINO_ARCH_APOLLO3) // checking which board we are using and selecting a Serial debug that will work.
 	boolean begin(uint8_t i2caddr = ATECC508A_ADDRESS_DEFAULT, TwoWire &wirePort = Wire, Stream &serialPort = Serial); // Artemis
 	#else
 	boolean begin(uint8_t i2caddr = ATECC508A_ADDRESS_DEFAULT, TwoWire &wirePort = Wire, Stream &serialPort = SerialUSB);  // SamD21 boards
 	#endif
-	
-	byte inputBuffer[128]; // used to store messages received from the IC as they come in
-	byte configZone[128]; // used to store configuration zone bytes read from device EEPROM
+
+	byte inputBuffer[BUFFER_SIZE]; // used to store messages received from the IC as they come in
+	byte configZone[CONFIG_ZONE_SIZE]; // used to store configuration zone bytes read from device EEPROM
 	uint8_t revisionNumber[5]; // used to store the complete revision number, pulled from configZone[4-7]
-	uint8_t serialNumber[10]; // used to store the complete Serial number, pulled from configZone[0-3] and configZone[8-12]
+	uint8_t serialNumber[SERIAL_NUMBER_SIZE]; // used to store the complete Serial number, pulled from configZone[0-3] and configZone[8-12]
 	boolean configLockStatus; // pulled from configZone[87], then set according to status (0x55=UNlocked, 0x00=Locked)
 	boolean dataOTPLockStatus; // pulled from configZone[86], then set according to status (0x55=UNlocked, 0x00=Locked)
 	boolean slot0LockStatus; // pulled from configZone[88], then set according to slot (bit 0) status
-	
-	byte publicKey64Bytes[64]; // used to store the public key returned when you (1) create a keypair, or (2) read a public key
-	uint8_t signature[64];
-	
+	uint16_t SlotConfig[DATA_ZONE_SLOTS];
+	uint16_t KeyConfig[DATA_ZONE_SLOTS];
+
+	byte publicKey64Bytes[PUBLIC_KEY_SIZE]; // used to store the public key returned when you (1) create a keypair, or (2) read a public key
+	uint8_t signature[SIGNATURE_SIZE];
+
 	boolean receiveResponseData(uint8_t length = 0, boolean debug = false);
 	boolean checkCount(boolean debug = false);
 	boolean checkCrc(boolean debug = false);
 	uint8_t countGlobal = 0; // used to add up all the bytes on a long message. Important to reset before each new receiveMessageData();
 	void cleanInputBuffer();
-	
+
 	boolean wakeUp();
 	void idleMode();
 	boolean getInfo();
@@ -119,7 +221,7 @@ class ATECCX08A {
 	boolean lockDataAndOTP();
 	boolean lockDataSlot0();
 	boolean lock(uint8_t zone);
-	
+
 	// Random array and fuctions
 	byte random32Bytes[32]; // used to store the complete data return (32 bytes) when we ask for a random number from chip.
 	boolean updateRandom32Bytes(boolean debug = false);
@@ -128,33 +230,37 @@ class ATECCX08A {
 	long getRandomLong(boolean debug = false);
 	long random(long max);
 	long random(long min, long max);
-	
-	uint8_t crc[2] = {0, 0};
-	void atca_calculate_crc(uint8_t length, uint8_t *data);	
-	
+
+	// SHA256
+	boolean sha256(uint8_t * data, size_t len, uint8_t * hash);
+
+	uint8_t crc[CRC_SIZE] = {0, 0};
+	void atca_calculate_crc(uint8_t length, uint8_t *data);
+
 	// Key functions
 	boolean createNewKeyPair(uint16_t slot = 0x0000);
 	boolean generatePublicKey(uint16_t slot = 0x0000, boolean debug = true);
-	
-	boolean createSignature(uint8_t *data, uint16_t slot = 0x0000); 
+
+	boolean createSignature(uint8_t *data, uint16_t slot = 0x0000);
 	boolean loadTempKey(uint8_t *data);  // load 32 bytes of data into tempKey (a temporary memory spot in the IC)
 	boolean signTempKey(uint16_t slot = 0x0000); // create signature using contents of TempKey and PRIVATE KEY in slot
 	boolean verifySignature(uint8_t *message, uint8_t *signature, uint8_t *publicKey); // external ECC publicKey only
 
 	boolean read(uint8_t zone, uint16_t address, uint8_t length, boolean debug = false);
+	boolean read_output(uint8_t zone, uint16_t address, uint8_t length, uint8_t * output, boolean debug = false);
 	boolean write(uint8_t zone, uint16_t address, uint8_t *data, uint8_t length_of_data);
 
 	boolean readConfigZone(boolean debug = true);
 	boolean sendCommand(uint8_t command_opcode, uint8_t param1, uint16_t param2, uint8_t *data = NULL, size_t length_of_data = 0);
-	
+
   private:
 
 	TwoWire *_i2cPort;
 
 	uint8_t _i2caddr;
-	
+
 	Stream *_debugSerial; //The generic connection to user's chosen serial hardware
-	
+
 };
 
 
