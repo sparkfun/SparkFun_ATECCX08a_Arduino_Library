@@ -3,6 +3,9 @@
 
   Written by Pete Lewis @ SparkFun Electronics, August 5th, 2019
 
+  Contributions for SHA256 support by Gili Yankovitch (github @gili-yankovitch), March 2020
+  See details of PR here: https://github.com/sparkfun/SparkFun_ATECCX08a_Arduino_Library/pull/3
+
   The IC uses I2C or 1-wire to communicate. This library only supports I2C.
 
   https://github.com/sparkfun/SparkFun_ATECCX08A_Arduino_Library

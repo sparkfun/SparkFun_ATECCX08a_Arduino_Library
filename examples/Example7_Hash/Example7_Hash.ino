@@ -5,6 +5,9 @@
   Date: April 23rd, 2020
   License: This code is public domain but you can buy me a beer if you use this and we meet someday (Beerware license).
 
+  Contributions for SHA256 support by Gili Yankovitch (github @gili-yankovitch), March 2020
+  See details of PR here: https://github.com/sparkfun/SparkFun_ATECCX08a_Arduino_Library/pull/3
+
   Feel like supporting our work? Please buy a board from SparkFun!
   https://www.sparkfun.com/products/15573
 
