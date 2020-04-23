@@ -30,6 +30,7 @@ lockDataSlot0						KEYWORD2
 generatePublicKey						KEYWORD2
 createSignature						KEYWORD2
 verifySignature						KEYWORD2
+sha256						KEYWORD2
 
 
 #######################################

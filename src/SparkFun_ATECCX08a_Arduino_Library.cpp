@@ -975,8 +975,11 @@ boolean ATECCX08A::verifySignature(uint8_t *message, uint8_t *signature, uint8_t
 boolean ATECCX08A::sha256(uint8_t * plain, size_t len, uint8_t * hash)
 {
 	int i;
-	int j;
 	size_t chunks = len / SHA_BLOCK_SIZE + !!(len % SHA_BLOCK_SIZE);
+  if((len % SHA_BLOCK_SIZE) == 0) chunks += 1; // END command can only accept up to 63 bytes, so we must add a "blank chunk" for the end command
+
+  // Serial.print("chunks:");
+  // Serial.println(chunks);
 
 	if (!sendCommand(COMMAND_OPCODE_SHA, SHA_START, 0))
 		return false;
@@ -1001,8 +1004,15 @@ boolean ATECCX08A::sha256(uint8_t * plain, size_t len, uint8_t * hash)
 		if (inputBuffer[RESPONSE_SIGNAL_INDEX] != ATRCC508A_SUCCESSFUL_SHA)
 			return false;
 
-		if ((len % SHA_BLOCK_SIZE) && (i + 1 == chunks))
+		if (i + 1 == chunks) // if we're on the last chunk, there will be a remainder or 0 (and 0 is okay for an end command)
 			data_size = len % SHA_BLOCK_SIZE;
+
+    // Serial.print("chunk:");
+    // Serial.println(i);
+    // Serial.print("data_size:");
+    // Serial.println(data_size);
+    // Serial.print("update vs end:");
+    // Serial.println((i + 1 != chunks) ? SHA_UPDATE : SHA_END);
 
 		/* Send next */
 		if (!sendCommand(COMMAND_OPCODE_SHA, (i + 1 != chunks) ? SHA_UPDATE : SHA_END, data_size, plain + i * SHA_BLOCK_SIZE, data_size))
