@@ -121,6 +121,8 @@
 #define WORD_ADDRESS_VALUE_COMMAND 	0x03	// This is the "command" word address,
 //this tells the IC we are going to send a command, and is used for most communications to the IC
 #define WORD_ADDRESS_VALUE_IDLE 0x02 // used to enter idle mode
+//this tells the IC to enter sleep mode
+#define WORD_ADDRESS_VALUE_SLEEP	0x01 // used to enter sleep mode
 
 // COMMANDS (aka "opcodes" in the datasheet)
 #define COMMAND_OPCODE_INFO 	0x30 // Return device state information.
@@ -218,6 +220,7 @@ class ATECCX08A {
 
 	boolean wakeUp();
 	void idleMode();
+	void sleep();
 	boolean getInfo();
 	boolean writeConfigSparkFun();
 	boolean lockConfig(); // note, this PERMINANTLY disables changes to config zone - including changing the I2C address!
