@@ -896,7 +896,7 @@ boolean ATECCX08A::signTempKey(uint16_t slot)
   if (!sendCommand(COMMAND_OPCODE_SIGN, SIGN_MODE_TEMPKEY, slot))
     return false;
 
-  delay(60); // time for IC to process command and exectute
+  delay(70); // time for IC to process command and exectute
 
   // Now let's read back from the IC.
   if (!receiveResponseData(RESPONSE_COUNT_SIZE + SIGNATURE_SIZE + CRC_SIZE)) // signature (64), plus crc (2), plus count (1)
