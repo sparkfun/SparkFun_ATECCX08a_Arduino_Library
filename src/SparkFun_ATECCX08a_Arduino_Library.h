@@ -191,7 +191,7 @@ class ATECCX08A {
   public:
 
     //By default use Wire, standard I2C speed, and the default ADS1015 address
-	#if defined(ARDUINO_ARCH_APOLLO3) || defined(ARDUINO_ARCH_ESP32) // checking which board we are using and selecting a Serial debug that will work.
+	#if defined(ARDUINO_ARCH_APOLLO3) || defined(ARDUINO_ARCH_ESP32)  || defined(NRF52_SERIES) // checking which board we are using and selecting a Serial debug that will work.
 	boolean begin(uint8_t i2caddr = ATECC508A_ADDRESS_DEFAULT, TwoWire &wirePort = Wire, Stream &serialPort = Serial); // Artemis
 	#else
 	boolean begin(uint8_t i2caddr = ATECC508A_ADDRESS_DEFAULT, TwoWire &wirePort = Wire, Stream &serialPort = SerialUSB);  // SamD21 boards
