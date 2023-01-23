@@ -489,11 +489,11 @@ bool ATECCX08A::receiveResponseData(uint8_t length, bool debug)
       requestAmount = length; // now we're ready to pull in the last chunk.
     }
 
-    uint32_t ret = _i2cPort->requestFrom(_i2caddr, requestAmount);    // request bytes from slave
+    _i2cPort->requestFrom(_i2caddr, requestAmount);    // request bytes from peripheral
 
     requestAttempts++;
 
-    while (_i2cPort->available())   // slave may send less than requested
+    while (_i2cPort->available())   // peripheral may send less than requested
     {
       uint8_t value = _i2cPort->read();
 
@@ -745,7 +745,6 @@ bool ATECCX08A::read(uint8_t zone, uint16_t address, uint8_t length, bool debug)
 
 bool ATECCX08A::read_output(uint8_t zone, uint16_t address, uint8_t length, uint8_t * output, bool debug)
 {
-  int i;
   // adjust zone as needed for whether it's 4 or 32 bytes length read
   // bit 7 of zone needs to be set correctly
   // (0 = 4 Bytes are read)
@@ -1010,7 +1009,6 @@ bool ATECCX08A::sha256(uint8_t * plain, size_t len, uint8_t * hash)
 	for (i = 0; i < chunks; ++i)
 	{
 		size_t data_size = SHA_BLOCK_SIZE;
-		uint8_t chunk[SHA_BLOCK_SIZE];
 
 		delay(9);
 
