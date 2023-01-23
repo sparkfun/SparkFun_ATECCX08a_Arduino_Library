@@ -113,6 +113,25 @@ void ATECCX08A::idleMode()
 
 /** \brief
 
+	sleep()
+
+	The ATECCX08A is forcefully put into sleep (LOW POWER) mode and ignores all subsequent I/O transitions
+	until the next wake flag. The contents of TempKey and RNG Seed registers are NOT retained.
+	Idle Power Supply Current: 150nA.
+	This helps avoid waiting for watchdog timer and immidiately puts the device in sleep mode.
+	With this sleep/wakeup cycle, RNG seed registers are updated from internal entropy.
+*/
+
+void ATECCX08A::sleep()
+{
+  idleMode();
+  _i2cPort->beginTransmission(_i2caddr); // set up to write to address
+  _i2cPort->write(WORD_ADDRESS_VALUE_SLEEP); // enter sleep command (aka word address - the first part of every communication to the IC)
+  _i2cPort->endTransmission(); // actually send it
+}
+
+/** \brief
+
 	getInfo()
 
 	This function sends the INFO Command and listens for the correct version (0x50) within the response.
