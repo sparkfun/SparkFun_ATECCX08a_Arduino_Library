@@ -121,6 +121,8 @@
 #define WORD_ADDRESS_VALUE_COMMAND 	0x03	// This is the "command" word address,
 //this tells the IC we are going to send a command, and is used for most communications to the IC
 #define WORD_ADDRESS_VALUE_IDLE 0x02 // used to enter idle mode
+//this tells the IC to enter sleep mode
+#define WORD_ADDRESS_VALUE_SLEEP	0x01 // used to enter sleep mode
 
 // COMMANDS (aka "opcodes" in the datasheet)
 #define COMMAND_OPCODE_INFO 	0x30 // Return device state information.
@@ -224,6 +226,7 @@ class ATECCX08A {
 	bool lockDataAndOTP();
 	bool lockDataSlot0();
 	bool lock(uint8_t zone);
+	void sleep();
 
 	// Random array and fuctions
 	byte random32Bytes[32]; // used to store the complete data return (32 bytes) when we ask for a random number from chip.
