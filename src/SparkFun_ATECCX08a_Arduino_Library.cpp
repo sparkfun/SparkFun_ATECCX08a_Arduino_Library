@@ -104,11 +104,11 @@ bool ATECCX08A::wakeUp()
 	Note, it will automatically go into sleep mode after watchdog timer has been reached (1.3-1.7sec).
 */
 
-void ATECCX08A::idleMode()
+bool ATECCX08A::idleMode()
 {
   _i2cPort->beginTransmission(_i2caddr); // set up to write to address
   _i2cPort->write(WORD_ADDRESS_VALUE_IDLE); // enter idle command (aka word address - the first part of every communication to the IC)
-  _i2cPort->endTransmission(); // actually send it
+  return (_i2cPort->endTransmission() == 0); // actually send it
 }
 
 /** \brief
@@ -122,12 +122,12 @@ void ATECCX08A::idleMode()
 	With this sleep/wakeup cycle, RNG seed registers are updated from internal entropy.
 */
 
-void ATECCX08A::sleep()
+bool ATECCX08A::sleep()
 {
   idleMode();
   _i2cPort->beginTransmission(_i2caddr); // set up to write to address
   _i2cPort->write(WORD_ADDRESS_VALUE_SLEEP); // enter sleep command (aka word address - the first part of every communication to the IC)
-  _i2cPort->endTransmission(); // actually send it
+  return (_i2cPort->endTransmission() == 0); // actually send it
 }
 
 /** \brief
@@ -1148,7 +1148,5 @@ bool ATECCX08A::sendCommand(uint8_t command_opcode, uint8_t param1, uint16_t par
 
   _i2cPort->beginTransmission(_i2caddr);
   _i2cPort->write(total_transmission, total_transmission_length);
-  _i2cPort->endTransmission();
-
-  return true;
+  return (_i2cPort->endTransmission() == 0);
 }

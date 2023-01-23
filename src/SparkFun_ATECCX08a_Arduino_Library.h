@@ -219,14 +219,14 @@ class ATECCX08A {
 	void cleanInputBuffer();
 
 	bool wakeUp();
-	void idleMode();
+	bool idleMode();
 	bool getInfo();
 	bool writeConfigSparkFun();
 	bool lockConfig(); // note, this PERMINANTLY disables changes to config zone - including changing the I2C address!
 	bool lockDataAndOTP();
 	bool lockDataSlot0();
 	bool lock(uint8_t zone);
-	void sleep();
+	bool sleep();
 
 	// Random array and fuctions
 	byte random32Bytes[32]; // used to store the complete data return (32 bytes) when we ask for a random number from chip.
