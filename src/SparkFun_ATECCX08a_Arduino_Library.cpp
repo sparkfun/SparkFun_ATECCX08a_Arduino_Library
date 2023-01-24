@@ -39,7 +39,7 @@
 	for the same purpose.
 */
 
-boolean ATECCX08A::begin(uint8_t i2caddr, TwoWire &wirePort, Stream &serialPort)
+bool ATECCX08A::begin(uint8_t i2caddr, TwoWire &wirePort, Stream &serialPort)
 {
   //Bring in the user's choices
   _i2cPort = &wirePort; //Grab which port the user wants us to use
@@ -68,7 +68,7 @@ boolean ATECCX08A::begin(uint8_t i2caddr, TwoWire &wirePort, Stream &serialPort)
 	respond with a status, we are gonna use wakeUp() for the same purpose.
 */
 
-boolean ATECCX08A::wakeUp()
+bool ATECCX08A::wakeUp()
 {
   _i2cPort->beginTransmission(0x00); // set up to write to address "0x00",
   // This creates a "wake condition" where SDA is held low for at least tWLO
@@ -104,11 +104,30 @@ boolean ATECCX08A::wakeUp()
 	Note, it will automatically go into sleep mode after watchdog timer has been reached (1.3-1.7sec).
 */
 
-void ATECCX08A::idleMode()
+bool ATECCX08A::idleMode()
 {
   _i2cPort->beginTransmission(_i2caddr); // set up to write to address
   _i2cPort->write(WORD_ADDRESS_VALUE_IDLE); // enter idle command (aka word address - the first part of every communication to the IC)
-  _i2cPort->endTransmission(); // actually send it
+  return (_i2cPort->endTransmission() == 0); // actually send it
+}
+
+/** \brief
+
+	sleep()
+
+	The ATECCX08A is forcefully put into sleep (LOW POWER) mode and ignores all subsequent I/O transitions
+	until the next wake flag. The contents of TempKey and RNG Seed registers are NOT retained.
+	Idle Power Supply Current: 150nA.
+	This helps avoid waiting for watchdog timer and immidiately puts the device in sleep mode.
+	With this sleep/wakeup cycle, RNG seed registers are updated from internal entropy.
+*/
+
+bool ATECCX08A::sleep()
+{
+  idleMode();
+  _i2cPort->beginTransmission(_i2caddr); // set up to write to address
+  _i2cPort->write(WORD_ADDRESS_VALUE_SLEEP); // enter sleep command (aka word address - the first part of every communication to the IC)
+  return (_i2cPort->endTransmission() == 0); // actually send it
 }
 
 /** \brief
@@ -122,7 +141,7 @@ void ATECCX08A::idleMode()
 	silicon revision.
 */
 
-boolean ATECCX08A::getInfo()
+bool ATECCX08A::getInfo()
 {
   if (!sendCommand(COMMAND_OPCODE_INFO, 0x00, 0x0000)) // param1 - 0x00 (revision mode).
   {
@@ -156,7 +175,7 @@ boolean ATECCX08A::getInfo()
 	and listens for success response (0x00).
 */
 
-boolean ATECCX08A::lockConfig()
+bool ATECCX08A::lockConfig()
 {
   return lock(LOCK_MODE_ZONE_CONFIG);
 }
@@ -172,7 +191,7 @@ boolean ATECCX08A::lockConfig()
 	This function also updates global variables for these other things.
 */
 
-boolean ATECCX08A::readConfigZone(boolean debug)
+bool ATECCX08A::readConfigZone(bool debug)
 {
   // read block 0, the first 32 bytes of config zone into inputBuffer
   read(ZONE_CONFIG, ADDRESS_CONFIG_READ_BLOCK_0, CONFIG_ZONE_READ_SIZE);
@@ -236,7 +255,7 @@ boolean ATECCX08A::readConfigZone(boolean debug)
 	and listens for success response (0x00).
 */
 
-boolean ATECCX08A::lockDataAndOTP()
+bool ATECCX08A::lockDataAndOTP()
 {
   return lock(LOCK_MODE_ZONE_DATA_AND_OTP);
 }
@@ -249,7 +268,7 @@ boolean ATECCX08A::lockDataAndOTP()
 	and listens for success response (0x00).
 */
 
-boolean ATECCX08A::lockDataSlot0()
+bool ATECCX08A::lockDataSlot0()
 {
   return lock(LOCK_MODE_SLOT0);
 }
@@ -262,7 +281,7 @@ boolean ATECCX08A::lockDataSlot0()
 	and listens for success response (0x00).
 */
 
-boolean ATECCX08A::lock(uint8_t zone)
+bool ATECCX08A::lock(uint8_t zone)
 {
   if (!sendCommand(COMMAND_OPCODE_LOCK, zone, 0x0000))
     return false;
@@ -289,7 +308,7 @@ boolean ATECCX08A::lock(uint8_t zone)
 
 /** \brief
 
-	updateRandom32Bytes(boolean debug)
+	updateRandom32Bytes(bool debug)
 
     This function pulls a complete random number (all 32 bytes)
     It stores it in a global array called random32Bytes[]
@@ -300,7 +319,7 @@ boolean ATECCX08A::lock(uint8_t zone)
     They are getRandomByte(), getRandomInt(), and getRandomLong().
 */
 
-boolean ATECCX08A::updateRandom32Bytes(boolean debug)
+bool ATECCX08A::updateRandom32Bytes(bool debug)
 {
   if (!sendCommand(COMMAND_OPCODE_RANDOM, 0x00, 0x0000))
     return false;
@@ -343,13 +362,13 @@ boolean ATECCX08A::updateRandom32Bytes(boolean debug)
 
 /** \brief
 
-	getRandomByte(boolean debug)
+	getRandomByte(bool debug)
 
     This function returns a random byte.
 	It calls updateRandom32Bytes(), then uses the first byte in that array for a return value.
 */
 
-byte ATECCX08A::getRandomByte(boolean debug)
+byte ATECCX08A::getRandomByte(bool debug)
 {
   updateRandom32Bytes(debug);
   return random32Bytes[0];
@@ -357,14 +376,14 @@ byte ATECCX08A::getRandomByte(boolean debug)
 
 /** \brief
 
-	getRandomInt(boolean debug)
+	getRandomInt(bool debug)
 
     This function returns a random Int.
 	It calls updateRandom32Bytes(), then uses the first 2 bytes in that array for a return value.
 	It bitwize ORS the first two bytes of the array into the return value.
 */
 
-int ATECCX08A::getRandomInt(boolean debug)
+int ATECCX08A::getRandomInt(bool debug)
 {
   updateRandom32Bytes(debug);
   int return_val;
@@ -376,14 +395,14 @@ int ATECCX08A::getRandomInt(boolean debug)
 
 /** \brief
 
-	getRandomLong(boolean debug)
+	getRandomLong(bool debug)
 
     This function returns a random Long.
 	It calls updateRandom32Bytes(), then uses the first 4 bytes in that array for a return value.
 	It bitwize ORS the first 4 bytes of the array into the return value.
 */
 
-long ATECCX08A::getRandomLong(boolean debug)
+long ATECCX08A::getRandomLong(bool debug)
 {
   updateRandom32Bytes(debug);
   long return_val;
@@ -430,7 +449,7 @@ long ATECCX08A::random(long min, long max)
 
 /** \brief
 
-	receiveResponseData(uint8_t length, boolean debug)
+	receiveResponseData(uint8_t length, bool debug)
 
 	This function receives messages from the ATECCX08a IC (up to 128 Bytes)
 	It will return true if it receives the correct amount of data and good CRCs.
@@ -443,7 +462,7 @@ long ATECCX08A::random(long min, long max)
 	It needs length argument:
 	length: length of data to receive (includes count + DATA + 2 crc bytes)
 */
-boolean ATECCX08A::receiveResponseData(uint8_t length, boolean debug)
+bool ATECCX08A::receiveResponseData(uint8_t length, bool debug)
 {
 
   // pull in data 32 bytes at at time. (necessary to avoid overflow on atmega328)
@@ -470,11 +489,11 @@ boolean ATECCX08A::receiveResponseData(uint8_t length, boolean debug)
       requestAmount = length; // now we're ready to pull in the last chunk.
     }
 
-    uint32_t ret = _i2cPort->requestFrom(_i2caddr, requestAmount);    // request bytes from slave
+    _i2cPort->requestFrom(_i2caddr, requestAmount);    // request bytes from peripheral
 
     requestAttempts++;
 
-    while (_i2cPort->available())   // slave may send less than requested
+    while (_i2cPort->available())   // peripheral may send less than requested
     {
       uint8_t value = _i2cPort->read();
 
@@ -506,14 +525,14 @@ boolean ATECCX08A::receiveResponseData(uint8_t length, boolean debug)
 
 /** \brief
 
-	checkCount(boolean debug)
+	checkCount(bool debug)
 
 	This function checks that the count byte received in the most recent message equals countGlobal
 	Call receiveResponseData, and then imeeditately call this to check the count of the complete message.
 	Returns true if inputBuffer[0] == countGlobal.
 */
 
-boolean ATECCX08A::checkCount(boolean debug)
+bool ATECCX08A::checkCount(bool debug)
 {
   if (debug)
   {
@@ -535,13 +554,13 @@ boolean ATECCX08A::checkCount(boolean debug)
 
 /** \brief
 
-	checkCrc(boolean debug)
+	checkCrc(bool debug)
 
 	This function checks that the CRC bytes received in the most recent message equals a calculated CRCs
 	Call receiveResponseData, then call immediately call this to check the CRCs of the complete message.
 */
 
-boolean ATECCX08A::checkCrc(boolean debug)
+bool ATECCX08A::checkCrc(bool debug)
 {
   // Check CRC[0] and CRC[1] are good to go.
   atca_calculate_crc(countGlobal - CRC_SIZE, inputBuffer);   // first calculate it
@@ -622,7 +641,7 @@ void ATECCX08A::cleanInputBuffer()
 	Sparkfun Default Configuration Sketch calls this, and then locks the data/otp zones and slot 0.
 */
 
-boolean ATECCX08A::createNewKeyPair(uint16_t slot)
+bool ATECCX08A::createNewKeyPair(uint16_t slot)
 {
   if (!sendCommand(COMMAND_OPCODE_GENKEY, GENKEY_MODE_NEW_PRIVATE, slot))
     return false;
@@ -651,7 +670,7 @@ boolean ATECCX08A::createNewKeyPair(uint16_t slot)
 
 /** \brief
 
-	generatePublicKey(uint16_t slot, boolean debug)
+	generatePublicKey(uint16_t slot, bool debug)
 
     This function uses the GENKEY command in "Public Key Computation" mode.
 
@@ -664,7 +683,7 @@ boolean ATECCX08A::createNewKeyPair(uint16_t slot)
 	a global variable named publicKey64Bytes for later use.
 */
 
-boolean ATECCX08A::generatePublicKey(uint16_t slot, boolean debug)
+bool ATECCX08A::generatePublicKey(uint16_t slot, bool debug)
 {
   if (!sendCommand(COMMAND_OPCODE_GENKEY, GENKEY_MODE_PUBLIC, slot))
     return false;
@@ -711,7 +730,7 @@ boolean ATECCX08A::generatePublicKey(uint16_t slot, boolean debug)
 
 /** \brief
 
-	read(uint8_t zone, uint16_t address, uint8_t length, boolean debug)
+	read(uint8_t zone, uint16_t address, uint8_t length, bool debug)
 
     Reads data from the IC at a specific zone and address.
 	Your data response will be available at inputBuffer[].
@@ -719,14 +738,13 @@ boolean ATECCX08A::generatePublicKey(uint16_t slot, boolean debug)
 	For more info on address encoding, see datasheet pg 58.
 */
 
-boolean ATECCX08A::read(uint8_t zone, uint16_t address, uint8_t length, boolean debug)
+bool ATECCX08A::read(uint8_t zone, uint16_t address, uint8_t length, bool debug)
 {
 	return read_output(zone, address, length, NULL, debug);
 }
 
-boolean ATECCX08A::read_output(uint8_t zone, uint16_t address, uint8_t length, uint8_t * output, boolean debug)
+bool ATECCX08A::read_output(uint8_t zone, uint16_t address, uint8_t length, uint8_t * output, bool debug)
 {
-  int i;
   // adjust zone as needed for whether it's 4 or 32 bytes length read
   // bit 7 of zone needs to be set correctly
   // (0 = 4 Bytes are read)
@@ -776,7 +794,7 @@ boolean ATECCX08A::read_output(uint8_t zone, uint16_t address, uint8_t length, u
 	For more info on zone and address encoding, see datasheet pg 58.
 */
 
-boolean ATECCX08A::write(uint8_t zone, uint16_t address, uint8_t *data, uint8_t length_of_data)
+bool ATECCX08A::write(uint8_t zone, uint16_t address, uint8_t *data, uint8_t length_of_data)
 {
   // adjust zone as needed for whether it's 4 or 32 bytes length write
   // bit 7 of param1 needs to be set correctly
@@ -833,7 +851,7 @@ boolean ATECCX08A::write(uint8_t zone, uint16_t address, uint8_t *data, uint8_t 
 	receives the signature and copies it to signature[].
 */
 
-boolean ATECCX08A::createSignature(uint8_t *data, uint16_t slot)
+bool ATECCX08A::createSignature(uint8_t *data, uint16_t slot)
 {
   if (!loadTempKey(data) || !signTempKey(slot))
     return false;
@@ -855,7 +873,7 @@ boolean ATECCX08A::createSignature(uint8_t *data, uint16_t slot)
     when it requests data, and this will allow us to create a unique data + signature for every communication.
 */
 
-boolean ATECCX08A::loadTempKey(uint8_t *data)
+bool ATECCX08A::loadTempKey(uint8_t *data)
 {
   if (!sendCommand(COMMAND_OPCODE_NONCE, NONCE_MODE_PASSTHROUGH, 0x0000, data, 32))
     return false;
@@ -891,7 +909,7 @@ boolean ATECCX08A::loadTempKey(uint8_t *data)
 	The response from this command (the signature) is stored in global varaible signature[].
 */
 
-boolean ATECCX08A::signTempKey(uint16_t slot)
+bool ATECCX08A::signTempKey(uint16_t slot)
 {
   if (!sendCommand(COMMAND_OPCODE_SIGN, SIGN_MODE_TEMPKEY, slot))
     return false;
@@ -939,7 +957,7 @@ boolean ATECCX08A::signTempKey(uint16_t slot)
 	Note, it acutally uses loadTempKey, then uses the verify command in "external public key" mode.
 */
 
-boolean ATECCX08A::verifySignature(uint8_t *message, uint8_t *signature, uint8_t *publicKey)
+bool ATECCX08A::verifySignature(uint8_t *message, uint8_t *signature, uint8_t *publicKey)
 {
   uint8_t data_sigAndPub[128];
 
@@ -975,7 +993,7 @@ boolean ATECCX08A::verifySignature(uint8_t *message, uint8_t *signature, uint8_t
   return true;
 }
 
-boolean ATECCX08A::sha256(uint8_t * plain, size_t len, uint8_t * hash)
+bool ATECCX08A::sha256(uint8_t * plain, size_t len, uint8_t * hash)
 {
 	int i;
 	size_t chunks = len / SHA_BLOCK_SIZE + !!(len % SHA_BLOCK_SIZE);
@@ -991,7 +1009,6 @@ boolean ATECCX08A::sha256(uint8_t * plain, size_t len, uint8_t * hash)
 	for (i = 0; i < chunks; ++i)
 	{
 		size_t data_size = SHA_BLOCK_SIZE;
-		uint8_t chunk[SHA_BLOCK_SIZE];
 
 		delay(9);
 
@@ -1051,11 +1068,11 @@ boolean ATECCX08A::sha256(uint8_t * plain, size_t len, uint8_t * hash)
 	Returns true if write commands were successful.
 */
 
-boolean ATECCX08A::writeConfigSparkFun()
+bool ATECCX08A::writeConfigSparkFun()
 {
   // keep track of our write command results.
-  boolean result1;
-  boolean result2;
+  bool result1;
+  bool result2;
 
   // set keytype on slot 0 and 1 to 0x3300
   // Lockable, ECC, PuInfo set (public key always allowed to be generated), contains a private Key
@@ -1084,7 +1101,7 @@ boolean ATECCX08A::writeConfigSparkFun()
 	So those specific transmissions are handled in unique functions.
 */
 
-boolean ATECCX08A::sendCommand(uint8_t command_opcode, uint8_t param1, uint16_t param2, uint8_t *data, size_t length_of_data)
+bool ATECCX08A::sendCommand(uint8_t command_opcode, uint8_t param1, uint16_t param2, uint8_t *data, size_t length_of_data)
 {
   // build packet array (total_transmission) to send a communication to IC, with opcode COMMAND
   // It expects to see: word address, count, command opcode, param1, param2, data (optional), CRC[0], CRC[1]
@@ -1129,7 +1146,5 @@ boolean ATECCX08A::sendCommand(uint8_t command_opcode, uint8_t param1, uint16_t 
 
   _i2cPort->beginTransmission(_i2caddr);
   _i2cPort->write(total_transmission, total_transmission_length);
-  _i2cPort->endTransmission();
-
-  return true;
+  return (_i2cPort->endTransmission() == 0);
 }
