@@ -231,7 +231,7 @@ bool ATECCX08A::readConfigZone(bool debug)
   if (debug)
   {
     _debugSerial->println("configZone: ");
-    for (int i = 0; i < sizeof(configZone) ; i++)
+    for (unsigned int i = 0; i < sizeof(configZone) ; i++)
     {
       _debugSerial->print(i);
 	  _debugSerial->print(": 0x");
@@ -349,7 +349,7 @@ bool ATECCX08A::updateRandom32Bytes(bool debug)
   if (debug)
   {
     _debugSerial->print("random32Bytes: ");
-    for (int i = 0; i < sizeof(random32Bytes) ; i++)
+    for (unsigned int i = 0; i < sizeof(random32Bytes) ; i++)
     {
       _debugSerial->print(random32Bytes[i], HEX);
       _debugSerial->print(",");
@@ -626,7 +626,7 @@ void ATECCX08A::atca_calculate_crc(uint8_t length, uint8_t *data)
 
 void ATECCX08A::cleanInputBuffer()
 {
-  for (int i = 0; i < sizeof(inputBuffer) ; i++)
+  for (unsigned int i = 0; i < sizeof(inputBuffer) ; i++)
   {
     inputBuffer[i] = 0xFF;
   }
@@ -712,7 +712,7 @@ bool ATECCX08A::generatePublicKey(uint16_t slot, bool debug)
     _debugSerial->println("This device's Public Key:");
     _debugSerial->println();
     _debugSerial->println("uint8_t publicKey[64] = {");
-    for (int i = 0; i < sizeof(publicKey64Bytes) ; i++)
+    for (unsigned int i = 0; i < sizeof(publicKey64Bytes) ; i++)
     {
       _debugSerial->print("0x");
       if ((publicKey64Bytes[i] >> 4) == 0) _debugSerial->print("0"); // print preceeding high nibble if it's zero
@@ -934,7 +934,7 @@ bool ATECCX08A::signTempKey(uint16_t slot)
 
   _debugSerial->println();
   _debugSerial->println("uint8_t signature[64] = {");
-  for (int i = 0; i < sizeof(signature) ; i++)
+  for (unsigned int i = 0; i < sizeof(signature) ; i++)
   {
     _debugSerial->print("0x");
     if ((signature[i] >> 4) == 0) _debugSerial->print("0"); // print preceeding high nibble if it's zero
@@ -995,7 +995,7 @@ bool ATECCX08A::verifySignature(uint8_t *message, uint8_t *signature, uint8_t *p
 
 bool ATECCX08A::sha256(uint8_t * plain, size_t len, uint8_t * hash)
 {
-	int i;
+	unsigned int i;
 	size_t chunks = len / SHA_BLOCK_SIZE + !!(len % SHA_BLOCK_SIZE);
   if((len % SHA_BLOCK_SIZE) == 0) chunks += 1; // END command can only accept up to 63 bytes, so we must add a "blank chunk" for the end command
 
